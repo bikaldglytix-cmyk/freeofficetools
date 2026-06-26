@@ -1,0 +1,200 @@
+"use client";
+
+import { useState } from "react";
+import {
+  ZoomIn,
+  ZoomOut,
+  Hand,
+  MousePointer2,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  Maximize,
+  MoveHorizontal,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface ViewerToolbarProps {
+  zoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
+  onFitWidth: () => void;
+  onFitPage: () => void;
+  currentPage: number; // 0-based
+  numPages: number;
+  onGoToPage: (index: number) => void;
+  handToolActive: boolean;
+  onToggleHand: () => void;
+  searchOpen: boolean;
+  onToggleSearch: () => void;
+}
+
+export function ViewerToolbar(props: ViewerToolbarProps) {
+  const {
+    zoom,
+    onZoomIn,
+    onZoomOut,
+    onResetZoom,
+    onFitWidth,
+    onFitPage,
+    currentPage,
+    numPages,
+    onGoToPage,
+    handToolActive,
+    onToggleHand,
+    searchOpen,
+    onToggleSearch,
+  } = props;
+
+  // Local, editable page-number box; commits on Enter or blur. Sync to the
+  // current page during render (not in an effect) when it changes externally.
+  const [pageInput, setPageInput] = useState(String(currentPage + 1));
+  const [prevPage, setPrevPage] = useState(currentPage);
+  if (prevPage !== currentPage) {
+    setPrevPage(currentPage);
+    setPageInput(String(currentPage + 1));
+  }
+
+  function commitPage() {
+    const n = parseInt(pageInput, 10);
+    if (Number.isFinite(n)) onGoToPage(Math.min(numPages, Math.max(1, n)) - 1);
+    else setPageInput(String(currentPage + 1));
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-2 py-1.5">
+      {/* Tool mode */}
+      <ToolbarToggle active={!handToolActive} label="Select / text" onClick={() => handToolActive && onToggleHand()}>
+        <MousePointer2 className="size-4" />
+      </ToolbarToggle>
+      <ToolbarToggle active={handToolActive} label="Pan (hand) — or hold Space" onClick={() => !handToolActive && onToggleHand()}>
+        <Hand className="size-4" />
+      </ToolbarToggle>
+
+      <Divider />
+
+      {/* Zoom */}
+      <IconButton label="Zoom out" onClick={onZoomOut}>
+        <ZoomOut className="size-4" />
+      </IconButton>
+      <button
+        type="button"
+        onClick={onResetZoom}
+        className="min-w-[3.25rem] rounded-md px-2 py-1 text-center text-xs font-medium tabular-nums text-foreground hover:bg-muted"
+        title="Reset to 100%"
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+      <IconButton label="Zoom in" onClick={onZoomIn}>
+        <ZoomIn className="size-4" />
+      </IconButton>
+      <IconButton label="Fit width" onClick={onFitWidth}>
+        <MoveHorizontal className="size-4" />
+      </IconButton>
+      <IconButton label="Fit page" onClick={onFitPage}>
+        <Maximize className="size-4" />
+      </IconButton>
+
+      <Divider />
+
+      {/* Page navigation */}
+      <IconButton
+        label="Previous page"
+        onClick={() => onGoToPage(Math.max(0, currentPage - 1))}
+        disabled={currentPage <= 0}
+      >
+        <ChevronUp className="size-4" />
+      </IconButton>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <input
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value.replace(/[^\d]/g, ""))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitPage();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          onBlur={commitPage}
+          inputMode="numeric"
+          aria-label="Page number"
+          className="h-7 w-10 rounded-md border border-input bg-card px-1 text-center text-xs tabular-nums text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40"
+        />
+        <span className="tabular-nums">/ {numPages}</span>
+      </div>
+      <IconButton
+        label="Next page"
+        onClick={() => onGoToPage(Math.min(numPages - 1, currentPage + 1))}
+        disabled={currentPage >= numPages - 1}
+      >
+        <ChevronDown className="size-4" />
+      </IconButton>
+
+      <div className="ml-auto" />
+
+      {/* Search */}
+      <ToolbarToggle active={searchOpen} label="Search (Ctrl/⌘+F)" onClick={onToggleSearch}>
+        <Search className="size-4" />
+      </ToolbarToggle>
+    </div>
+  );
+}
+
+function IconButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ToolbarToggle({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        "flex size-8 items-center justify-center rounded-md transition-colors",
+        active ? "bg-primary-soft text-primary ring-1 ring-primary/40" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Divider() {
+  return <span className="mx-1 h-5 w-px bg-border" />;
+}

@@ -1,0 +1,246 @@
+@import "tailwindcss";
+
+/*
+  FreeOfficeTools design system.
+  Calm, airy, trustworthy. Light theme only for MVP to guarantee
+  consistent contrast and a predictable look across every page.
+*/
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  /* Clean Vercel-like shadows */
+  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-lift: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+:root {
+  --radius: 0.5rem; /* Crisper corners like a dashboard */
+
+  /* Light Theme - Vercel style (Off-white background, pure white cards) */
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.15 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0 0);
+
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+
+  --border: oklch(0.92 0 0);
+  --input: oklch(0.92 0 0);
+
+  /* Friendly, calm blue primary */
+  --primary: oklch(0.55 0.18 256);
+  --primary-foreground: oklch(0.99 0.01 247);
+  --primary-soft: oklch(0.95 0.03 256);
+
+  --accent: oklch(0.96 0 0);
+  --accent-foreground: oklch(0.15 0 0);
+
+  --ring: oklch(0.55 0.18 256);
+
+  --success: oklch(0.5 0.15 150);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.7 0.15 70);
+  --destructive: oklch(0.55 0.2 27);
+  --destructive-foreground: oklch(1 0 0);
+}
+
+.dark {
+  /* Dark Theme - soft near-black background, slightly lifted cards */
+  --background: oklch(0.115 0 0);
+  --foreground: oklch(0.96 0 0);
+
+  --card: oklch(0.16 0 0);
+  --card-foreground: oklch(0.96 0 0);
+
+  --muted: oklch(0.2 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+
+  /* Very subtle borders */
+  --border: oklch(0.27 0 0);
+  --input: oklch(0.27 0 0);
+
+  /* Friendly, calm blue primary */
+  --primary: oklch(0.62 0.19 256);
+  --primary-foreground: oklch(0.99 0.01 247);
+  --primary-soft: oklch(0.62 0.19 256 / 0.16);
+
+  --accent: oklch(0.2 0 0);
+  --accent-foreground: oklch(0.95 0 0);
+
+  --ring: oklch(0.62 0.19 256);
+
+  --success: oklch(0.6 0.15 150);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.8 0.15 70);
+  --destructive: oklch(0.65 0.2 27);
+  --destructive-foreground: oklch(1 0 0);
+
+  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-lift: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible, consistent focus ring for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility container-page {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 72rem;
+  padding-inline: 1.25rem;
+}
+
+/*
+  pdf.js v6 text layer (PDF Editor).
+  These class names (.textLayer / .markedContent / .endOfContent) are emitted by
+  pdf.js's TextLayer, so they can't be CSS-module-scoped. We instead namespace
+  every rule under `.pdf-editor-viewer` so the global styles only ever apply
+  inside the editor. pdf.js positions each span absolutely and sets the per-span
+  custom properties (--font-height, --scale-x, --rotate); the page sets
+  --total-scale-factor to the current zoom. Glyphs are transparent and overlay
+  the canvas exactly, while a visible ::selection gives native text selection.
+*/
+.pdf-editor-viewer .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+  --total-scale-factor: 1;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.pdf-editor-viewer .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.pdf-editor-viewer .textLayer > :not(.markedContent),
+.pdf-editor-viewer .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.pdf-editor-viewer .textLayer .markedContent {
+  display: contents;
+}
+
+.pdf-editor-viewer .textLayer span[role="img"] {
+  user-select: none;
+  cursor: default;
+}
+
+.pdf-editor-viewer .textLayer ::selection {
+  background: rgba(80, 140, 255, 0.4);
+}
+
+.pdf-editor-viewer .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  user-select: none;
+}

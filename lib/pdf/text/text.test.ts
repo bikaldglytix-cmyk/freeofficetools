@@ -1,0 +1,240 @@
+import { describe, expect, it } from "vitest";
+import type { GlyphRun, TextBlock } from "./types";
+import type { OCRLayer } from "@/lib/pdf/editor/model/types";
+import { analyzePdfFont, cssFontFamily, defaultTextStyle, matchFont } from "./fonts";
+import {
+  clampRect,
+  expandRect,
+  pdfToViewportRect,
+  rectContainsPoint,
+  rectIntersects,
+  unionRects,
+  viewportToPdfRect,
+} from "./geometry";
+import {
+  groupRunsIntoLines,
+  inferBoundsFromText,
+  reconstructTextBlocks,
+  type ReconstructionOptions,
+} from "./reconstruction";
+import {
+  createAddedTextOperation,
+  createReplacementTextOperation,
+  styleTextOperation,
+  textBlockToEditorObject,
+  updateTextContentOperation,
+} from "./operations";
+import { createNewTextInstruction, createWhiteoutRestampInstruction } from "./whiteout";
+import { groupOcrWords, ocrLayerToTextObjects } from "./ocr";
+
+const OPTS: Required<ReconstructionOptions> = {
+  lineToleranceRatio: 0.55,
+  wordGapRatio: 0.42,
+  paragraphGapRatio: 1.25,
+  columnGapRatio: 3,
+};
+
+function run(text: string, x: number, y: number, w = 20, h = 14): GlyphRun {
+  return {
+    id: `r_${x}_${y}_${text}`,
+    text,
+    bounds: { x, y, width: w, height: h },
+    transform: [1, 0, 0, 1, x, y],
+    style: defaultTextStyle(),
+    sourceItemIndex: 0,
+    charStart: 0,
+    charEnd: text.length,
+  };
+}
+
+function nativeBlock(): TextBlock {
+  const [block] = reconstructTextBlocks({
+    documentId: "doc1",
+    pageId: "page1",
+    runs: [run("Hello", 0, 100), run("World", 60, 100)],
+  });
+  return block;
+}
+
+describe("text/geometry", () => {
+  it("unions rects to their bounding box", () => {
+    expect(unionRects([{ x: 10, y: 10, width: 10, height: 10 }, { x: 30, y: 5, width: 10, height: 20 }])).toEqual({
+      x: 10,
+      y: 5,
+      width: 30,
+      height: 20,
+    });
+  });
+
+  it("returns a zero rect for an empty union", () => {
+    expect(unionRects([])).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+  });
+
+  it("round-trips between pdf and viewport coordinates at any zoom", () => {
+    const rect = { x: 12, y: 34, width: 56, height: 78 };
+    expect(viewportToPdfRect(pdfToViewportRect(rect, 2.5), 2.5)).toEqual(rect);
+  });
+
+  it("expands symmetrically and tests intersection/containment", () => {
+    expect(expandRect({ x: 10, y: 10, width: 10, height: 10 }, 2)).toEqual({ x: 8, y: 8, width: 14, height: 14 });
+    expect(rectIntersects({ x: 0, y: 0, width: 10, height: 10 }, { x: 5, y: 5, width: 10, height: 10 })).toBe(true);
+    expect(rectIntersects({ x: 0, y: 0, width: 10, height: 10 }, { x: 20, y: 20, width: 5, height: 5 })).toBe(false);
+    expect(rectContainsPoint({ x: 0, y: 0, width: 10, height: 10 }, { x: 5, y: 5 })).toBe(true);
+  });
+
+  it("clamps a rect inside the page box", () => {
+    const clamped = clampRect({ x: -50, y: -50, width: 9999, height: 9999 }, { width: 600, height: 800 });
+    expect(clamped).toEqual({ x: 0, y: 0, width: 600, height: 800 });
+  });
+});
+
+describe("text/fonts", () => {
+  it("strips subset prefixes and detects weight/style/serif", () => {
+    const bold = analyzePdfFont("ABCDEF+Times-Bold");
+    expect(bold.subset).toBe(true);
+    expect(bold.weight).toBe(700);
+    expect(bold.fallbackFamily).toBe("Times New Roman");
+
+    const italic = analyzePdfFont("Helvetica-Oblique");
+    expect(italic.style).toBe("italic");
+    expect(italic.fallbackFamily).toBe("Arial");
+
+    const mono = analyzePdfFont("CourierNewPSMT");
+    expect(mono.fallbackFamily).toBe("Courier New");
+  });
+
+  it("matches available fonts and flags availability", () => {
+    const matched = matchFont(analyzePdfFont("Arial"));
+    expect(matched.available).toBe(true);
+    expect(matched.family).toBe("Arial");
+
+    const unmatched = matchFont(analyzePdfFont("SomeProprietaryFont"));
+    expect(unmatched.available).toBe(false);
+  });
+
+  it("builds a default style and a CSS font stack", () => {
+    const style = defaultTextStyle({ fontSize: 18 });
+    expect(style.fontSize).toBe(18);
+    expect(cssFontFamily(style.font)).toContain("sans-serif");
+  });
+});
+
+describe("text/reconstruction", () => {
+  it("groups runs on the same baseline into one line with word spacing", () => {
+    const lines = groupRunsIntoLines([run("Hello", 0, 100), run("World", 60, 100)], OPTS);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toContain("Hello");
+    expect(lines[0].text).toContain("World");
+    expect(lines[0].text).toContain(" ");
+  });
+
+  it("separates runs on distinct baselines into distinct lines", () => {
+    const lines = groupRunsIntoLines([run("A", 0, 100), run("B", 0, 130)], OPTS);
+    expect(lines).toHaveLength(2);
+  });
+
+  it("splits paragraphs on large vertical gaps", () => {
+    const blocks = reconstructTextBlocks({
+      documentId: "doc1",
+      pageId: "page1",
+      runs: [run("Para1", 0, 100), run("Para1b", 0, 116), run("Para2", 0, 160)],
+    });
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].provenance.kind).toBe("native");
+    expect(blocks[0].documentId).toBe("doc1");
+  });
+
+  it("infers a sensible bounding box from raw text", () => {
+    const bounds = inferBoundsFromText("line one\nline two", 10, 20, 12);
+    expect(bounds.x).toBe(10);
+    expect(bounds.width).toBeGreaterThan(0);
+    expect(bounds.height).toBeGreaterThan(12);
+  });
+});
+
+describe("text/operations", () => {
+  it("creates an ADD_TEXT op for brand-new text with new-text export metadata", () => {
+    const op = createAddedTextOperation({ pageId: "page1", rect: { x: 0, y: 0, width: 100, height: 20 }, text: "Hi" });
+    expect(op.type).toBe("ADD_TEXT");
+    if (op.type !== "ADD_TEXT") throw new Error("unreachable");
+    expect(op.object.kind).toBe("text");
+    expect(op.object.source).toBe("added");
+    expect(op.object.text).toBe("Hi");
+    expect((op.object.metadata.export as { kind: string }).kind).toBe("new-text");
+  });
+
+  it("maps a style change onto UPDATE_TEXT fields", () => {
+    const op = styleTextOperation("page1", "obj1", { fontSize: 22, color: "#ff0000", align: "center" });
+    expect(op.type).toBe("UPDATE_TEXT");
+    if (op.type !== "UPDATE_TEXT") throw new Error("unreachable");
+    expect(op.changes.fontSize).toBe(22);
+    expect(op.changes.color).toBe("#ff0000");
+    expect(op.changes.align).toBe("center");
+  });
+
+  it("produces a whiteout-restamp replacement for native text", () => {
+    const op = createReplacementTextOperation({ source: nativeBlock(), text: "Replaced" });
+    expect(op.type).toBe("ADD_TEXT");
+    if (op.type !== "ADD_TEXT") throw new Error("unreachable");
+    expect((op.object.metadata.export as { kind: string }).kind).toBe("whiteout-restamp");
+  });
+
+  it("converts an UPDATE_TEXT content edit with restamp metadata", () => {
+    const op = updateTextContentOperation("page1", "obj1", "Edited");
+    expect(op.type).toBe("UPDATE_TEXT");
+    if (op.type !== "UPDATE_TEXT") throw new Error("unreachable");
+    expect(op.changes.text).toBe("Edited");
+  });
+
+  it("converts a text block into an editor object", () => {
+    const editorObject = textBlockToEditorObject(nativeBlock());
+    expect(editorObject.kind).toBe("text");
+    expect(editorObject.text).toContain("Hello");
+  });
+});
+
+describe("text/whiteout", () => {
+  it("emits a whiteout-restamp instruction covering each source line", () => {
+    const source = nativeBlock();
+    const instruction = createWhiteoutRestampInstruction(source, { objectId: "obj1", text: "New" });
+    expect(instruction.kind).toBe("whiteout-restamp");
+    expect(instruction.whiteout?.bounds.length).toBe(source.lines.length);
+    expect(instruction.text).toBe("New");
+  });
+
+  it("emits a new-text instruction for added blocks", () => {
+    const instruction = createNewTextInstruction(nativeBlock());
+    expect(instruction.kind).toBe("new-text");
+  });
+});
+
+describe("text/ocr", () => {
+  const layer: OCRLayer = {
+    id: "ocr1",
+    pageId: "page1",
+    engine: "tesseract",
+    language: "eng",
+    words: [
+      { id: "w1", text: "foo", rect: { x: 0, y: 0, width: 30, height: 12 }, confidence: 0.9 },
+      { id: "w2", text: "bar", rect: { x: 35, y: 0, width: 30, height: 12 }, confidence: 0.7 },
+    ],
+    createdAt: 1,
+    updatedAt: 2,
+    metadata: {},
+  };
+
+  it("maps each OCR word to a confidence-tagged text object", () => {
+    const objects = ocrLayerToTextObjects("doc1", "page1", layer);
+    expect(objects).toHaveLength(2);
+    expect(objects[0].provenance.kind).toBe("ocr");
+    expect(objects[0].provenance.kind === "ocr" && objects[0].provenance.confidence).toBe(0.9);
+    expect(objects[0].text).toBe("foo");
+  });
+
+  it("groups OCR words into one block with averaged confidence", () => {
+    const block = groupOcrWords("doc1", "page1", layer);
+    expect(block.text).toBe("foo bar");
+    expect(block.provenance.kind === "ocr" && block.provenance.confidence).toBeCloseTo(0.8);
+    expect(block.bounds.width).toBe(65);
+  });
+});

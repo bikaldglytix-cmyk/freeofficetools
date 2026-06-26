@@ -1,0 +1,4 @@
+# The conversion backend is deployed to Render, not Vercel — exclude it from
+# the frontend deploy. (The Next.js build never imports from here.)
+services/
+SEO-AUDIT.md

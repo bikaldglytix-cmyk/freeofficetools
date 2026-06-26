@@ -1,0 +1,9 @@
+# Dependencies — reinstalled fresh in the Docker build
+node_modules/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Env
+.env*

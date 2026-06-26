@@ -1,0 +1,20 @@
+# Render Blueprint — deploys ONLY the document-conversion backend.
+# The Next.js frontend lives on Vercel; this service handles Office conversions.
+# Render auto-detects this file at the repo root (New → Blueprint), or create
+# the service manually (see services/office-converter/README.md).
+services:
+  - type: web
+    name: office-converter
+    runtime: docker
+    rootDir: services/office-converter
+    # Free works but sleeps after ~15 min idle (slow cold start).
+    # Use "starter" for always-on conversions.
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: CONVERT_TOKEN
+        generateValue: true
+      - key: MAX_FILE_MB
+        value: "100"
