@@ -25,7 +25,7 @@ export function SiteFooter() {
 
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 md:gap-12">
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">PDF tools</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">PDF tools</h2>
               <ul className="mt-4 space-y-2.5">
                 {footerNav.pdf.slice(0, 4).map((link) => (
                   <li key={link.href}>
@@ -37,7 +37,7 @@ export function SiteFooter() {
               </ul>
             </div>
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Office tools</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Office tools</h2>
               <ul className="mt-4 space-y-2.5">
                 {footerNav.office.slice(0, 4).map((link) => (
                   <li key={link.href}>
@@ -49,7 +49,7 @@ export function SiteFooter() {
               </ul>
             </div>
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Video &amp; audio</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Video &amp; audio</h2>
               <ul className="mt-4 space-y-2.5">
                 {footerNav.media.slice(0, 4).map((link) => (
                   <li key={link.href}>
@@ -61,7 +61,7 @@ export function SiteFooter() {
               </ul>
             </div>
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Company</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Company</h2>
               <ul className="mt-4 space-y-2.5">
                 {footerNav.company.map((link) => (
                   <li key={link.href}>
@@ -75,7 +75,7 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-border/20 pt-8 text-xs text-muted-foreground/70 sm:flex-row">
+        <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-border/20 pt-8 text-xs text-muted-foreground sm:flex-row">
           <p>© {new Date().getFullYear()} {siteConfig.name}.</p>
           <div className="flex gap-4">
             <span>No sign-up</span>
