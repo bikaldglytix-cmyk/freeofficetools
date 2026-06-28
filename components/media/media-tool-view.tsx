@@ -1,4 +1,8 @@
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+
 import { getRelatedMediaTools, type MediaToolDefinition } from "@/lib/media/tools";
+import { guides } from "@/lib/guides";
 import {
   breadcrumbJsonLd,
   faqJsonLd,
@@ -12,14 +16,14 @@ import { HowTo } from "@/components/sections/how-to";
 import { Faq } from "@/components/sections/faq";
 import { RelatedTools } from "@/components/sections/related-tools";
 import { MediaRunner } from "@/components/media/media-runner";
-import { MediaPrivacyNote } from "@/components/media/privacy-note";
 
 export function MediaToolView({ tool }: { tool: MediaToolDefinition }) {
   const related = getRelatedMediaTools(tool.slug);
+  const relatedGuide = guides.find((g) => g.toolSlug === tool.slug);
   const crumbs = [
     { name: "Home", path: "/" },
     { name: "Media tools", path: "/media-tools" },
-    { name: tool.name, path: `/${tool.slug}` },
+    { name: tool.name, path: `/media-tools/${tool.slug}` },
   ];
 
   return (
@@ -43,7 +47,6 @@ export function MediaToolView({ tool }: { tool: MediaToolDefinition }) {
 
         <div className="mx-auto max-w-3xl space-y-3">
           <MediaRunner slug={tool.slug} />
-          <MediaPrivacyNote />
         </div>
 
         <div className="mx-auto max-w-3xl">
@@ -63,6 +66,21 @@ export function MediaToolView({ tool }: { tool: MediaToolDefinition }) {
       <div className="mx-auto max-w-3xl">
         <HowTo title={`How to use the ${tool.name.toLowerCase()}`} steps={tool.steps} />
       </div>
+
+      {relatedGuide ? (
+        <div className="mx-auto max-w-3xl">
+          <Link
+            href={`/guides/${relatedGuide.slug}`}
+            className="group flex items-center justify-between gap-4 rounded-2xl border border-transparent bg-muted/20 p-5 transition-colors hover:border-border/40 hover:bg-muted/40"
+          >
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Read the guide</p>
+              <p className="mt-1 font-medium text-foreground">{relatedGuide.h1}</p>
+            </div>
+            <ArrowRight className="size-5 shrink-0 text-primary transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mx-auto max-w-3xl">
         <Faq faqs={tool.faqs} />

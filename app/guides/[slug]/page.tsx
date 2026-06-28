@@ -5,6 +5,8 @@ import { ArrowRight } from "lucide-react";
 
 import { getGuide, guideSlugs } from "@/lib/guides";
 import { getTool } from "@/lib/tools";
+import { getMediaTool } from "@/lib/media/tools";
+import { getOfficeTool } from "@/lib/office/tools";
 import { siteConfig } from "@/lib/site";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd, canonical } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -37,7 +39,13 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
   const guide = getGuide(slug);
   if (!guide) notFound();
 
-  const tool = getTool(guide.toolSlug);
+  const tool =
+    guide.toolCategory === "pdf-tools"
+      ? getTool(guide.toolSlug)
+      : guide.toolCategory === "media-tools"
+        ? getMediaTool(guide.toolSlug)
+        : getOfficeTool(guide.toolSlug);
+
   const crumbs = [
     { name: "Home", path: "/" },
     { name: "Guides", path: "/guides" },
@@ -76,7 +84,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
 
         {tool ? (
           <Button asChild size="lg">
-            <Link href={`/pdf-tools/${tool.slug}`}>
+            <Link href={`/${guide.toolCategory}/${tool.slug}`}>
               Open the {tool.name} tool <ArrowRight className="size-4" />
             </Link>
           </Button>
@@ -114,7 +122,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             <p className="font-semibold text-foreground">Ready to try it?</p>
             <p className="mt-1 text-sm text-muted-foreground">{tool.short}</p>
             <Button asChild className="mt-3">
-              <Link href={`/pdf-tools/${tool.slug}`}>
+              <Link href={`/${guide.toolCategory}/${tool.slug}`}>
                 Use {tool.name} <ArrowRight className="size-4" />
               </Link>
             </Button>

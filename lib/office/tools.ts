@@ -61,7 +61,7 @@ export const officeTools: OfficeToolDefinition[] = [
     processing: "server",
     engine: "word-to-pdf",
     short: "Convert Word documents to PDF with the layout preserved.",
-    title: "Word to PDF Converter - Free DOCX to PDF Online",
+    title: "Word to PDF — Free DOCX to PDF Converter",
     metaDescription:
       "Convert Word to PDF online for free. Turn DOC and DOCX files into polished PDFs with fonts, images and layout preserved. Fast, private and no sign-up.",
     h1: "Word to PDF Converter",
@@ -105,7 +105,7 @@ export const officeTools: OfficeToolDefinition[] = [
     processing: "server",
     engine: "pdf-to-word",
     short: "Convert PDFs into editable Word documents.",
-    title: "PDF to Word Converter - Free PDF to DOCX Online",
+    title: "PDF to Word — Free PDF to DOCX Converter",
     metaDescription:
       "Convert PDF to Word online for free. Turn PDF files into editable DOCX documents with text and layout preserved. Private, fast and no sign-up required.",
     h1: "PDF to Word Converter",
@@ -149,7 +149,7 @@ export const officeTools: OfficeToolDefinition[] = [
     processing: "server",
     engine: "excel-to-pdf",
     short: "Convert Excel spreadsheets to clean, shareable PDFs.",
-    title: "Excel to PDF Converter - Free XLSX to PDF Online",
+    title: "Excel to PDF — Free XLSX to PDF Converter",
     metaDescription:
       "Convert Excel to PDF online for free. Turn XLSX and XLS spreadsheets into tidy PDFs with rows, columns and formatting preserved. Private, fast, no sign-up.",
     h1: "Excel to PDF Converter",
@@ -193,7 +193,7 @@ export const officeTools: OfficeToolDefinition[] = [
     processing: "server",
     engine: "pdf-to-excel",
     short: "Extract tables from PDFs into editable Excel spreadsheets.",
-    title: "PDF to Excel Converter - Free PDF to XLSX Online",
+    title: "PDF to Excel — Free PDF to XLSX Converter",
     metaDescription:
       "Convert PDF to Excel online for free. Extract tables and data from PDF files into editable XLSX spreadsheets. Private, fast and no sign-up required.",
     h1: "PDF to Excel Converter",
@@ -237,7 +237,7 @@ export const officeTools: OfficeToolDefinition[] = [
     processing: "server",
     engine: "powerpoint-to-pdf",
     short: "Convert PowerPoint slides to a shareable PDF.",
-    title: "PowerPoint to PDF Converter - Free PPTX to PDF",
+    title: "PowerPoint to PDF — Free PPTX Converter",
     metaDescription:
       "Convert PowerPoint to PDF online for free. Turn PPT and PPTX slides into a clean PDF with layout and fonts preserved. Private, fast and no sign-up required.",
     h1: "PowerPoint to PDF Converter",
@@ -281,7 +281,7 @@ export const officeTools: OfficeToolDefinition[] = [
     processing: "server",
     engine: "pdf-to-powerpoint",
     short: "Convert PDF pages into editable PowerPoint slides.",
-    title: "PDF to PowerPoint Converter - Free PDF to PPTX",
+    title: "PDF to PowerPoint — Free PPTX Converter",
     metaDescription:
       "Convert PDF to PowerPoint online for free. Turn PDF pages into editable PPTX slides for your presentation. Private, fast and no sign-up required.",
     h1: "PDF to PowerPoint Converter",
@@ -326,87 +326,7 @@ export function getOfficeTool(slug: string): OfficeToolDefinition | undefined {
 
 export const officeToolSlugs = officeTools.map((t) => t.slug);
 
-/* ---------------------------------------------------------------------------
- * Category pages (/word-tools, /excel-tools, /powerpoint-tools)
- * ------------------------------------------------------------------------- */
 
-export interface OfficeCategory {
-  group: OfficeGroup;
-  slug: string;
-  name: string;
-  title: string;
-  metaDescription: string;
-  h1: string;
-  intro: string[];
-  keywords: string[];
-  faqs: ToolFaq[];
-}
-
-export const officeCategories: OfficeCategory[] = [
-  {
-    group: "word",
-    slug: "word-tools",
-    name: "Word tools",
-    title: "Free Word Tools - Convert Word to PDF & Back",
-    metaDescription:
-      "Free online Word tools. Convert Word to PDF and PDF to Word with formatting preserved — private, fast and no sign-up. Everything you need for DOC and DOCX files.",
-    h1: "Word tools",
-    intro: [
-      "Everything you need to move between Word and PDF. Convert DOC and DOCX files into polished PDFs for sharing, or turn PDFs back into editable Word documents — with your formatting kept intact.",
-      "Every tool is free, needs no sign-up, and handles your files securely without storing them.",
-    ],
-    keywords: ["word tools", "word to pdf", "pdf to word", "docx tools", "convert word documents"],
-    faqs: [
-      { q: "Are the Word tools free?", a: "Yes. Every Word tool is free with no sign-up, no limits and no watermark." },
-      { q: "Is my document kept private?", a: "Your files are processed securely for the conversion and are never stored or shared." },
-      { q: "Which formats are supported?", a: "Modern .docx and older .doc files, plus PDF for converting back to Word." },
-    ],
-  },
-  {
-    group: "excel",
-    slug: "excel-tools",
-    name: "Excel tools",
-    title: "Free Excel Tools - Convert Excel to PDF & Back",
-    metaDescription:
-      "Free online Excel tools. Convert Excel to PDF and extract tables from PDF to Excel — private, fast and no sign-up. Everything you need for XLS and XLSX files.",
-    h1: "Excel tools",
-    intro: [
-      "Move between Excel and PDF with ease. Turn spreadsheets into clean PDFs anyone can open, or pull tables out of PDFs into editable Excel files you can sort and total.",
-      "Every tool is free, needs no sign-up, and handles your files securely without storing them.",
-    ],
-    keywords: ["excel tools", "excel to pdf", "pdf to excel", "xlsx tools", "spreadsheet converter"],
-    faqs: [
-      { q: "Are the Excel tools free?", a: "Yes. Every Excel tool is free with no sign-up, no limits and no watermark." },
-      { q: "Will my formatting be preserved?", a: "Converting to PDF keeps rows, columns and cell formatting so the result matches your spreadsheet." },
-      { q: "Which formats are supported?", a: "XLS, XLSX and CSV spreadsheets, plus PDF for extracting tables back into Excel." },
-    ],
-  },
-  {
-    group: "powerpoint",
-    slug: "powerpoint-tools",
-    name: "PowerPoint tools",
-    title: "Free PowerPoint Tools - Convert PPT to PDF & Back",
-    metaDescription:
-      "Free online PowerPoint tools. Convert PowerPoint to PDF and PDF to PowerPoint slides — private, fast and no sign-up. Everything you need for PPT and PPTX files.",
-    h1: "PowerPoint tools",
-    intro: [
-      "Convert presentations both ways. Turn PPT and PPTX slides into a clean PDF for sharing and printing, or rebuild PDF pages into editable PowerPoint slides for your next deck.",
-      "Every tool is free, needs no sign-up, and handles your files securely without storing them.",
-    ],
-    keywords: ["powerpoint tools", "powerpoint to pdf", "pdf to powerpoint", "pptx tools", "presentation converter"],
-    faqs: [
-      { q: "Are the PowerPoint tools free?", a: "Yes. Every PowerPoint tool is free with no sign-up, no limits and no watermark." },
-      { q: "Is one slide one page?", a: "When converting to PDF, each slide becomes a single page; converting back, each page becomes a slide." },
-      { q: "Which formats are supported?", a: "PPT and PPTX presentations, plus PDF for converting back into slides." },
-    ],
-  },
-];
-
-const officeCategoryBySlug = new Map(officeCategories.map((c) => [c.slug, c]));
-
-export function getOfficeCategory(slug: string): OfficeCategory | undefined {
-  return officeCategoryBySlug.get(slug);
-}
 
 export function getOfficeToolsByGroup(group: OfficeGroup): OfficeToolDefinition[] {
   return officeTools.filter((t) => t.group === group);

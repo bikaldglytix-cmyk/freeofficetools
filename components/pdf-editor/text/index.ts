@@ -5,7 +5,6 @@
  * (`@/lib/pdf/text`) through the Phase 2 document store.
  */
 export { TextEditLayer, applyStyleToSelectedText, deleteSelectedText, type TextTool } from "./text-edit-layer";
-export { TextEditToolbar } from "./text-edit-toolbar";
 export { TextBlockEditor } from "./text-block-editor";
 export { useTextExtraction } from "./use-text-extraction";
 export type { UseTextExtractionParams } from "./use-text-extraction";

@@ -63,11 +63,51 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
+// Office and media tools used to live at root slugs (/word-to-pdf, /video-to-mp3).
+// They now nest under their hub (/office-tools/<slug>, /media-tools/<slug>) to
+// match the PDF tools. Permanently redirect the old URLs so existing links and
+// any indexed pages don't 404. Keep these in sync with lib/office|media/tools.
+const officeToolSlugs = [
+  "word-to-pdf",
+  "pdf-to-word",
+  "excel-to-pdf",
+  "pdf-to-excel",
+  "powerpoint-to-pdf",
+  "pdf-to-powerpoint",
+];
+const mediaToolSlugs = [
+  "video-to-mp3",
+  "mp4-to-mp3",
+  "audio-converter",
+  "mp3-converter",
+  "video-compressor",
+  "audio-trimmer",
+];
+
+const legacyToolRedirects = [
+  ...officeToolSlugs.map((slug) => ({
+    source: `/${slug}`,
+    destination: `/office-tools/${slug}`,
+    permanent: true,
+  })),
+  ...mediaToolSlugs.map((slug) => ({
+    source: `/${slug}`,
+    destination: `/media-tools/${slug}`,
+    permanent: true,
+  })),
+  { source: "/word-tools", destination: "/office-tools", permanent: true },
+  { source: "/excel-tools", destination: "/office-tools", permanent: true },
+  { source: "/powerpoint-tools", destination: "/office-tools", permanent: true },
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  async redirects() {
+    return legacyToolRedirects;
   },
 };
 

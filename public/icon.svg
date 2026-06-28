@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="FreeOfficeTools">
+  <rect width="512" height="512" rx="112" fill="#2f5cdb"/>
+  <path d="M180 132h168a16 16 0 0 1 16 16v40h-44v-12h-112v208h-44V148a16 16 0 0 1 16-16z" fill="#ffffff" opacity="0.55"/>
+  <path d="M196 196h152a16 16 0 0 1 16 16v152a16 16 0 0 1-16 16H196a16 16 0 0 1-16-16V212a16 16 0 0 1 16-16zm32 56v40h88v-40h-88zm0 72v36h88v-36h-88z" fill="#ffffff"/>
+</svg>

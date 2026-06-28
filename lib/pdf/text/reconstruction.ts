@@ -8,6 +8,11 @@ export interface ReconstructionOptions {
   wordGapRatio?: number;
   paragraphGapRatio?: number;
   columnGapRatio?: number;
+  /** Lines whose font size differs by more than this fraction start a new block,
+   *  so a large heading is never merged with body text it happens to sit near.
+   *  A merged block carries a single style, so mixing sizes would re-flow text at
+   *  the wrong size and overflow on edit. */
+  fontSizeJumpRatio?: number;
 }
 
 const DEFAULT_OPTIONS: Required<ReconstructionOptions> = {
@@ -15,6 +20,7 @@ const DEFAULT_OPTIONS: Required<ReconstructionOptions> = {
   wordGapRatio: 0.42,
   paragraphGapRatio: 1.25,
   columnGapRatio: 3,
+  fontSizeJumpRatio: 0.2,
 };
 
 export function reconstructTextBlocks(input: {
@@ -30,20 +36,25 @@ export function reconstructTextBlocks(input: {
 
 export function groupRunsIntoLines(runs: readonly GlyphRun[], options: Required<ReconstructionOptions>): TextLine[] {
   const sorted = [...runs].sort((a, b) => (Math.abs(a.bounds.y - b.bounds.y) > 2 ? a.bounds.y - b.bounds.y : a.bounds.x - b.bounds.x));
-  const lineRuns: GlyphRun[][] = [];
+  // Track each line's running union bounds so we never re-union the whole line
+  // for every candidate on every run (previously O(n² · runs-per-line)).
+  const lines: { runs: GlyphRun[]; box: Rect }[] = [];
 
   for (const run of sorted) {
-    const target = lineRuns.find((line) => {
-      const box = unionRects(line.map((r) => r.bounds));
-      const tolerance = Math.max(run.bounds.height, box.height) * options.lineToleranceRatio;
-      return Math.abs(run.bounds.y - box.y) <= tolerance;
+    const target = lines.find((line) => {
+      const tolerance = Math.max(run.bounds.height, line.box.height) * options.lineToleranceRatio;
+      return Math.abs(run.bounds.y - line.box.y) <= tolerance;
     });
-    if (target) target.push(run);
-    else lineRuns.push([run]);
+    if (target) {
+      target.runs.push(run);
+      target.box = unionRects([target.box, run.bounds]);
+    } else {
+      lines.push({ runs: [run], box: { ...run.bounds } });
+    }
   }
 
-  return lineRuns
-    .map((line) => [...line].sort((a, b) => a.bounds.x - b.bounds.x))
+  return lines
+    .map((line) => [...line.runs].sort((a, b) => a.bounds.x - b.bounds.x))
     .map((line) => {
       const spans = runsToSpans(line, options);
       const bounds = unionRects(spans.map((s) => s.bounds));
@@ -104,7 +115,12 @@ function groupLinesIntoBlocks(
       const indentDelta = Math.abs(line.bounds.x - prev.bounds.x);
       const paragraphGap = Math.max(prev.bounds.height, line.bounds.height) * options.paragraphGapRatio;
       const columnGap = Math.max(prev.bounds.height, line.bounds.height) * options.columnGapRatio;
-      if (verticalGap > paragraphGap || indentDelta > columnGap) {
+      const prevSize = prev.spans[0]?.style.fontSize ?? 0;
+      const lineSize = line.spans[0]?.style.fontSize ?? 0;
+      const sizeJump =
+        prevSize > 0 && lineSize > 0 &&
+        Math.abs(prevSize - lineSize) / Math.max(prevSize, lineSize) > options.fontSizeJumpRatio;
+      if (verticalGap > paragraphGap || indentDelta > columnGap || sizeJump) {
         blocks.push(current);
         current = [];
       }

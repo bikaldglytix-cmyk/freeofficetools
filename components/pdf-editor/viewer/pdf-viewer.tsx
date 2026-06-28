@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Loader2, AlertTriangle, Type, X } from "lucide-react";
 import { useEditorDocument } from "@/components/pdf-editor/hooks/use-editor-document";
 import { useScrollMetrics } from "@/components/pdf-editor/hooks/use-scroll-metrics";
 import { usePan } from "@/components/pdf-editor/hooks/use-pan";
-import { AnnotationToolbar } from "@/components/pdf-editor/annotations/annotation-toolbar";
-import { deleteSelectedAnnotations } from "@/components/pdf-editor/annotations/annotation-layer";
-import { TextEditToolbar } from "@/components/pdf-editor/text";
+import { usePdfExport } from "@/components/pdf-editor/hooks/use-pdf-export";
+import { EditorToolbar, type EditorMode } from "@/components/pdf-editor/toolbar/editor-toolbar";
+import { SignatureDialog, type SignatureSpec } from "@/components/pdf-editor/signature/signature-dialog";
 import type { TextTool } from "@/components/pdf-editor/text";
-import type { AnnotationTool } from "@/lib/pdf/annotations";
+import { fileToImageSpec, replaceSelectedImage } from "@/components/pdf-editor/image/image-actions";
+import { addAnnotationOperation, createSignatureAnnotation, type AnnotationTool } from "@/lib/pdf/annotations";
+import { createImageObject } from "@/lib/pdf/editor/model/factory";
+import { ops } from "@/lib/pdf/editor/operations/types";
+import { documentStore } from "@/lib/pdf/editor/store/document-store";
 import { usePdfSearch } from "@/components/pdf-editor/hooks/use-pdf-search";
 import {
   computeLayout,
@@ -57,11 +61,35 @@ export function PdfViewer({ file }: { file: File }) {
   const [zoom, setZoom] = useState(1);
   const [handTool, setHandTool] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // This is the "Edit PDF" tool, so open straight into text-editing: every line
+  // is immediately outlined and clickable, instead of hiding editing behind a
+  // "View" default the user has to discover. They can switch to View to just read.
+  const [mode, setMode] = useState<EditorMode>("text");
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>("select");
-  const [textTool, setTextTool] = useState<TextTool>("off");
+  const [textTool, setTextTool] = useState<TextTool>("select");
+  const [viewHintDismissed, setViewHintDismissed] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const imageAction = useRef<"insert" | "replace">("insert");
+
+  // Switching editing mode maps the high-level choice down to the concrete tool
+  // states the layers read. Tools are remembered per mode where it makes sense
+  // (e.g. re-entering Draw keeps your last shape), defaulting otherwise.
+  const selectMode = useCallback((next: EditorMode) => {
+    setMode(next);
+    setHandTool(false);
+    if (next === "text") {
+      setAnnotationTool("select");
+      setTextTool((t) => (t === "off" ? "select" : t));
+      return;
+    }
+    setTextTool("off");
+    setAnnotationTool((t) => defaultAnnotationToolFor(next, t));
+  }, []);
 
   const search = usePdfSearch(doc);
   const { panCursorActive, panning } = usePan(scrollEl, handTool);
+  const exporter = usePdfExport(file);
 
   // ----- Layout + virtualization (derived) -------------------------------
   const layout = useMemo<ViewerLayout>(() => {
@@ -81,6 +109,109 @@ export function PdfViewer({ file }: { file: File }) {
   const currentPage = useMemo(
     () => currentPageAt(layout, metrics.scrollTop, metrics.viewportHeight),
     [layout, metrics.scrollTop, metrics.viewportHeight],
+  );
+
+  // Picking "Signature" opens the custom signature box instead of a browser
+  // prompt; every other annotation tool arms as usual.
+  const onPickAnnotationTool = useCallback((t: AnnotationTool) => {
+    if (t === "signature") {
+      setSignatureOpen(true);
+      return;
+    }
+    setAnnotationTool(t);
+  }, []);
+
+  // Place the built signature ONCE on the current page, select it for dragging,
+  // then drop back to the select tool so clicking elsewhere never re-stamps it.
+  const placeSignature = useCallback(
+    (spec: SignatureSpec) => {
+      const store = documentStore.getState();
+      const model = store.document;
+      const pageId = model?.pageOrder[currentPage];
+      if (!model || !pageId) return;
+      const size = model.pages[pageId]?.size ?? { width: 612, height: 792 };
+      const w = 220;
+      const h = spec.mode === "image" ? 96 : 72;
+      // Drop it in the middle of what's currently on screen so it's never placed
+      // off-view (page geometry is in scaled px; divide by zoom for page points).
+      const page = layout.pages[currentPage];
+      const viewCenterPt = page
+        ? (metrics.scrollTop + metrics.viewportHeight / 2 - page.top) / zoom
+        : size.height / 2;
+      const rect = {
+        x: Math.max(0, (size.width - w) / 2),
+        y: Math.min(Math.max(0, viewCenterPt - h / 2), Math.max(0, size.height - h)),
+        width: w,
+        height: h,
+      };
+      const ctx = { documentId: model.meta.id, pageId, author: model.meta.author };
+      const annotation =
+        spec.mode === "typed"
+          ? createSignatureAnnotation(ctx, rect, { mode: "typed", text: spec.text, fontFamily: spec.fontFamily, stroke: spec.color })
+          : createSignatureAnnotation(ctx, rect, { mode: "image", src: spec.src });
+      const op = addAnnotationOperation(annotation);
+      store.dispatch(op);
+      const id = op.type === "ADD_SIGNATURE" || op.type === "ADD_ANNOTATION" ? op.object.id : null;
+      if (id) store.select(pageId, [id]);
+      setSignatureOpen(false);
+      setAnnotationTool("select");
+    },
+    [currentPage, layout, metrics.scrollTop, metrics.viewportHeight, zoom],
+  );
+
+  // Insert a picked image, sized to fit and centred in the current view (mirrors
+  // placeSignature). Everything stays a client-side data URL.
+  const insertImage = useCallback(
+    async (file: File) => {
+      const spec = await fileToImageSpec(file);
+      const store = documentStore.getState();
+      const model = store.document;
+      const pageId = model?.pageOrder[currentPage];
+      if (!model || !pageId) return;
+      const size = model.pages[pageId]?.size ?? { width: 612, height: 792 };
+      const w = Math.min(260, size.width * 0.6, spec.naturalWidth);
+      const h = w * (spec.naturalHeight / Math.max(1, spec.naturalWidth));
+      const page = layout.pages[currentPage];
+      const viewCenterPt = page ? (metrics.scrollTop + metrics.viewportHeight / 2 - page.top) / zoom : size.height / 2;
+      const rect = {
+        x: Math.max(0, (size.width - w) / 2),
+        y: Math.min(Math.max(0, viewCenterPt - h / 2), Math.max(0, size.height - h)),
+        width: w,
+        height: h,
+      };
+      const obj = createImageObject({
+        pageId,
+        rect,
+        src: spec.src,
+        mimeType: spec.mimeType,
+        naturalWidth: spec.naturalWidth,
+        naturalHeight: spec.naturalHeight,
+        actor: model.meta.author,
+      });
+      store.dispatch(ops.addImage(pageId, obj));
+      store.select(pageId, [obj.id]);
+    },
+    [currentPage, layout, metrics.scrollTop, metrics.viewportHeight, zoom],
+  );
+
+  const openImagePicker = useCallback((action: "insert" | "replace") => {
+    imageAction.current = action;
+    imageInputRef.current?.click();
+  }, []);
+
+  const onImageFileChange = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = ""; // allow re-picking the same file
+      if (!file) return;
+      try {
+        if (imageAction.current === "insert") await insertImage(file);
+        else replaceSelectedImage(await fileToImageSpec(file));
+      } catch {
+        /* decode/read failure — ignore; the user can retry with another file */
+      }
+    },
+    [insertImage],
   );
 
   // ----- Initial fit-to-width once the document + viewport are known -----
@@ -198,30 +329,77 @@ export function PdfViewer({ file }: { file: File }) {
           onToggleHand={() => setHandTool((v) => !v)}
           searchOpen={searchOpen}
           onToggleSearch={() => (searchOpen ? closeSearch() : openSearch())}
+          onDownload={exporter.download}
+          downloadPhase={exporter.phase}
+          downloadProgress={exporter.progress}
         />
       ) : null}
       {ready ? (
-        <AnnotationToolbar
-          tool={annotationTool}
-          onToolChange={(next) => {
-            setAnnotationTool(next);
-            if (handTool) setHandTool(false);
-            if (textTool !== "off") setTextTool("off");
-          }}
-          onDeleteSelection={deleteSelectedAnnotations}
+        <EditorToolbar
+          mode={mode}
+          onModeChange={selectMode}
+          annotationTool={annotationTool}
+          onAnnotationToolChange={onPickAnnotationTool}
+          textTool={textTool}
+          onTextToolChange={setTextTool}
+          onInsertImage={() => openImagePicker("insert")}
+          onReplaceImage={() => openImagePicker("replace")}
         />
       ) : null}
-      {ready ? (
-        <TextEditToolbar
-          tool={textTool}
-          onToolChange={(next) => {
-            setTextTool(next);
-            if (next !== "off") {
-              if (handTool) setHandTool(false);
-              setAnnotationTool("select");
-            }
+
+      {/* Hidden picker shared by Insert/Replace image. */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onImageFileChange}
+      />
+
+      {signatureOpen ? (
+        <SignatureDialog
+          onClose={() => {
+            setSignatureOpen(false);
+            setAnnotationTool("select");
           }}
+          onConfirm={placeSignature}
         />
+      ) : null}
+
+      {ready && mode === "view" && !viewHintDismissed ? (
+        <div className="flex items-center gap-2 border-b border-primary/20 bg-primary-soft/50 px-3 py-2 text-xs text-foreground">
+          <Type className="size-4 shrink-0 text-primary" />
+          <span className="flex-1">
+            To change the words in your PDF, switch to <span className="font-semibold">Edit Text</span>, then
+            click any highlighted text on the page.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              selectMode("text");
+              setViewHintDismissed(true);
+            }}
+            className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+          >
+            Edit Text
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss tip"
+            title="Dismiss"
+            onClick={() => setViewHintDismissed(true)}
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {exporter.phase === "error" && exporter.error ? (
+        <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span className="flex-1">Download failed: {exporter.error}</span>
+        </div>
       ) : null}
 
       <div className="relative flex min-h-0 flex-1">
@@ -287,3 +465,20 @@ export function PdfViewer({ file }: { file: File }) {
 
 // Stable empty array so memoized pages don't re-render when a page has no matches.
 const EMPTY_MATCHES: never[] = [];
+
+const MODE_TOOL_GROUPS: Record<"annotate" | "draw" | "sign", AnnotationTool[]> = {
+  annotate: ["highlight", "comment", "sticky-note"],
+  draw: ["draw", "rectangle", "circle", "line", "arrow"],
+  sign: ["signature", "stamp"],
+};
+
+/** The annotation tool a mode should arm: keep the current one if it belongs to
+ *  the mode, otherwise fall back to the mode's first tool. */
+function defaultAnnotationToolFor(mode: EditorMode, current: AnnotationTool): AnnotationTool {
+  // View/Text/Image/Sign all arm "select": Image lets you click+drag existing
+  // pictures (insert is an explicit button); Sign opens the signature box on a
+  // button so a stray page click can't drop anything.
+  if (mode === "view" || mode === "text" || mode === "image" || mode === "sign") return "select";
+  const group = MODE_TOOL_GROUPS[mode];
+  return group.includes(current) ? current : group[0];
+}

@@ -11,8 +11,12 @@ import {
   ChevronDown,
   Maximize,
   MoveHorizontal,
+  Download,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ExportPhase } from "@/components/pdf-editor/hooks/use-pdf-export";
 
 interface ViewerToolbarProps {
   zoom: number;
@@ -28,6 +32,9 @@ interface ViewerToolbarProps {
   onToggleHand: () => void;
   searchOpen: boolean;
   onToggleSearch: () => void;
+  onDownload: () => void;
+  downloadPhase: ExportPhase;
+  downloadProgress: number;
 }
 
 export function ViewerToolbar(props: ViewerToolbarProps) {
@@ -45,6 +52,9 @@ export function ViewerToolbar(props: ViewerToolbarProps) {
     onToggleHand,
     searchOpen,
     onToggleSearch,
+    onDownload,
+    downloadPhase,
+    downloadProgress,
   } = props;
 
   // Local, editable page-number box; commits on Enter or blur. Sync to the
@@ -138,7 +148,57 @@ export function ViewerToolbar(props: ViewerToolbarProps) {
       <ToolbarToggle active={searchOpen} label="Search (Ctrl/⌘+F)" onClick={onToggleSearch}>
         <Search className="size-4" />
       </ToolbarToggle>
+
+      <Divider />
+
+      {/* Download the edited PDF */}
+      <DownloadButton onClick={onDownload} phase={downloadPhase} progress={downloadProgress} />
     </div>
+  );
+}
+
+function DownloadButton({
+  onClick,
+  phase,
+  progress,
+}: {
+  onClick: () => void;
+  phase: ExportPhase;
+  progress: number;
+}) {
+  const working = phase === "working";
+  const done = phase === "done";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={working}
+      title="Download the edited PDF"
+      aria-label="Download the edited PDF"
+      className={cn(
+        "flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors disabled:cursor-default",
+        done
+          ? "bg-success/15 text-success ring-1 ring-success/40"
+          : "bg-primary text-primary-foreground hover:bg-primary/90",
+      )}
+    >
+      {working ? (
+        <>
+          <Loader2 className="size-4 animate-spin" />
+          <span className="tabular-nums">{progress}%</span>
+        </>
+      ) : done ? (
+        <>
+          <Check className="size-4" />
+          Saved
+        </>
+      ) : (
+        <>
+          <Download className="size-4" />
+          Download
+        </>
+      )}
+    </button>
   );
 }
 

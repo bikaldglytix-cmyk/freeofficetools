@@ -130,9 +130,10 @@ export function createStickyNoteAnnotation(ctx: AnnotationCreationContext, bound
 export function createSignatureAnnotation(
   ctx: AnnotationCreationContext,
   bounds: Rect,
-  signature: { mode: "draw" | "typed" | "image"; text?: string; src?: string; paths?: Point[][]; fontFamily?: string },
+  signature: { mode: "draw" | "typed" | "image"; text?: string; src?: string; paths?: Point[][]; fontFamily?: string; stroke?: string },
 ): PdfAnnotation {
-  return { ...base(ctx, "signature", bounds), type: "signature", stroke: "#111827", ...signature };
+  const { stroke, ...rest } = signature;
+  return { ...base(ctx, "signature", bounds), type: "signature", stroke: stroke ?? "#111827", ...rest };
 }
 
 export function createStampAnnotation(ctx: AnnotationCreationContext, bounds: Rect, label = "Approved"): PdfAnnotation {

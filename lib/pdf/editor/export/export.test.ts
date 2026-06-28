@@ -17,6 +17,7 @@ import {
 import type { DocumentState, PageId, Rect } from "../model/types";
 import { parseColor } from "./color";
 import { mapPoint, placeBox, placementFor } from "./geometry";
+import { whiteoutRects } from "./overlay-renderer";
 import { ExportPipeline } from "./pipeline";
 import { ValidationService } from "./validation";
 
@@ -94,6 +95,33 @@ describe("color", () => {
 
   it("falls back to black on garbage", () => {
     expect(parseColor("not-a-color").rgb).toMatchObject({ red: 0, green: 0, blue: 0 });
+  });
+});
+
+describe("overlay — whiteout bounds", () => {
+  const block = (metadata: Record<string, unknown>) =>
+    ({ rect: { x: 10, y: 10, width: 100, height: 20 }, metadata }) as never;
+
+  it("masks the ORIGINAL glyph bounds from export.whiteout.bounds, not the live rect", () => {
+    // This is the shape the text engine actually produces (createWhiteoutRestampInstruction).
+    const original = { x: 5, y: 5, width: 80, height: 12 };
+    const rects = whiteoutRects(block({ export: { whiteout: { bounds: [original] } } }));
+    expect(rects).toHaveLength(1);
+    // Padded original bounds — must derive from `original`, not the block rect.
+    expect(rects[0].x).toBeCloseTo(original.x - 1.25, 2);
+    expect(rects[0].width).toBeCloseTo(original.width + 2.5, 2);
+  });
+
+  it("still honours the legacy metadata.whiteoutBounds key", () => {
+    const rects = whiteoutRects(block({ whiteoutBounds: [{ x: 1, y: 2, width: 3, height: 4 }] }));
+    expect(rects).toHaveLength(1);
+    expect(rects[0].x).toBeCloseTo(1 - 1.25, 2);
+  });
+
+  it("falls back to the block rect when no bounds are recorded", () => {
+    const rects = whiteoutRects(block({}));
+    expect(rects).toHaveLength(1);
+    expect(rects[0].width).toBeCloseTo(100 + 2.5, 2);
   });
 });
 

@@ -1,14 +1,34 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, MousePointerClick, Upload, Download } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { tools } from "@/lib/tools";
 import { mediaTools } from "@/lib/media/tools";
 import { officeTools } from "@/lib/office/tools";
-import { canonical, faqJsonLd } from "@/lib/seo";
+import { buildMetadata, canonical, faqJsonLd } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/json-ld";
 import { TrustBar } from "@/components/sections/trust-bar";
 import { Faq } from "@/components/sections/faq";
 import { AppMockup } from "@/components/sections/app-mockup";
+
+export const metadata: Metadata = buildMetadata({
+  title: "FreeOfficeTools — Free PDF, Office & Media Tools Online",
+  description:
+    "Free online PDF, document and media tools that run in your browser. Merge, split, compress, convert PDFs, Word, Excel, PowerPoint, video and audio — no sign-up, no uploads, no watermarks.",
+  path: "/",
+  keywords: [
+    "free pdf tools",
+    "online pdf editor",
+    "merge pdf",
+    "compress pdf",
+    "word to pdf",
+    "video to mp3",
+    "free office tools",
+    "document converter",
+    "pdf tools online",
+    "audio converter",
+  ],
+});
 
 interface TileItem {
   name: string;
@@ -67,9 +87,9 @@ function ToolSection({
 }
 
 const howItWorks = [
-  { Icon: MousePointerClick, title: "Pick a tool", text: "Choose from PDF, Office, and video & audio tools." },
-  { Icon: Upload, title: "Add your file", text: "Drag and drop — most tools process it right in your browser." },
-  { Icon: Download, title: "Download", text: "Get your result instantly. No sign-up, no watermark." },
+  { Icon: MousePointerClick, title: "Select a tool", text: "Choose from our massive suite of PDF, Office, and media utilities." },
+  { Icon: Upload, title: "Process locally", text: "Drag and drop your file. We process it directly in your browser for absolute privacy." },
+  { Icon: Download, title: "Instant download", text: "Get your polished result instantly. No sign-up, no watermarks, no limits." },
 ];
 
 const homeFaqs = [
@@ -102,8 +122,8 @@ const homeFaqs = [
 export default function HomePage() {
   const directory = [
     ...tools.map((t) => ({ name: t.name, url: canonical(`/pdf-tools/${t.slug}`) })),
-    ...officeTools.map((t) => ({ name: t.name, url: canonical(`/${t.slug}`) })),
-    ...mediaTools.map((t) => ({ name: t.name, url: canonical(`/${t.slug}`) })),
+    ...officeTools.map((t) => ({ name: t.name, url: canonical(`/office-tools/${t.slug}`) })),
+    ...mediaTools.map((t) => ({ name: t.name, url: canonical(`/media-tools/${t.slug}`) })),
   ];
   const itemList = {
     "@context": "https://schema.org",
@@ -117,8 +137,8 @@ export default function HomePage() {
   };
 
   const pdfItems: TileItem[] = tools.map((t) => ({ name: t.name, href: `/pdf-tools/${t.slug}`, Icon: t.icon }));
-  const officeItems: TileItem[] = officeTools.map((t) => ({ name: t.name, href: `/${t.slug}`, Icon: t.icon }));
-  const mediaItems: TileItem[] = mediaTools.map((t) => ({ name: t.name, href: `/${t.slug}`, Icon: t.icon }));
+  const officeItems: TileItem[] = officeTools.map((t) => ({ name: t.name, href: `/office-tools/${t.slug}`, Icon: t.icon }));
+  const mediaItems: TileItem[] = mediaTools.map((t) => ({ name: t.name, href: `/media-tools/${t.slug}`, Icon: t.icon }));
 
   return (
     <div className="mx-auto max-w-5xl space-y-16 px-4 pb-24 pt-8 sm:px-6 md:space-y-24 md:pt-16">
@@ -127,11 +147,11 @@ export default function HomePage() {
       {/* Hero */}
       <section className="px-4 text-center">
         <h1 className="text-balance text-5xl font-extrabold tracking-tight text-foreground sm:text-6xl md:text-7xl">
-          Your complete office toolkit.
+          Free PDF, Office &amp; Media Tools
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground sm:text-xl">
-          PDF tools, document converters, and everyday office utilities — all running directly in your
-          browser. Fast, private, and completely free.
+          The one-stop solution for all your office work — edit PDFs, convert documents, and process
+          media files directly in your browser. <span className="font-semibold text-foreground">Zero server uploads. Zero sign-ups. 100% free forever.</span>
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -142,10 +162,10 @@ export default function HomePage() {
             Explore Tools <ArrowRight className="ml-2 size-4" />
           </Link>
           <Link
-            href="/pdf-tools/merge-pdf"
+            href="/pdf-tools/edit-pdf"
             className="flex h-12 w-full items-center justify-center rounded-lg border border-border/60 bg-card px-8 text-[15px] font-medium text-foreground hover:bg-muted/50 sm:w-auto"
           >
-            Try Merge PDF
+            Try Free PDF Editor
           </Link>
         </div>
 
@@ -179,8 +199,8 @@ export default function HomePage() {
         />
         <ToolSection
           id="home-media-heading"
-          title="Video & audio tools"
-          blurb="Convert and compress video and audio, extract MP3, and more."
+          title="Video, Audio & Image tools"
+          blurb="Convert, compress and edit video, audio and images natively in your browser."
           viewAllHref="/media-tools"
           items={mediaItems}
         />

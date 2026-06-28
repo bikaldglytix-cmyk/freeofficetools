@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import type { Rect, TextBlock as EditorTextBlock } from "@/lib/pdf/editor/model/types";
+import type { Rect, TextBlock as EditorTextBlock, TextRun } from "@/lib/pdf/editor/model/types";
+import { caretIndexAtX } from "@/lib/pdf/text/measure";
+import type { RichResult } from "@/lib/pdf/text/rich-runs";
+import { RichTextEditor } from "./rich-text-editor";
 
 type Anchor = { l?: boolean; r?: boolean; t?: boolean; b?: boolean };
 
@@ -25,6 +28,25 @@ const HANDLES: Array<{ key: string; anchor: Anchor; left: string | number; top: 
   { key: "sw", anchor: { l: true, b: true }, left: 0, top: "100%", cursor: "nesw-resize" },
   { key: "w", anchor: { l: true }, left: 0, top: "50%", cursor: "ew-resize" },
 ];
+
+/** A single styled run in the static (non-editing) display, so a block with
+ *  mixed formatting shows each run's weight/slant/size/colour faithfully. */
+function RunSpan({ run, object, zoom }: { run: TextRun; object: EditorTextBlock; zoom: number }) {
+  return (
+    <span
+      style={{
+        fontFamily: run.fontFamily ?? object.fontFamily,
+        fontSize: (run.fontSize ?? object.fontSize) * zoom,
+        color: run.color ?? object.color,
+        fontWeight: (run.bold ?? object.bold) ? 700 : 400,
+        fontStyle: (run.italic ?? object.italic) ? "italic" : "normal",
+        textDecoration: run.underline ? "underline" : undefined,
+      }}
+    >
+      {run.text}
+    </span>
+  );
+}
 
 /** Resolve a gesture's pointer delta (already in page points) into a new rect. */
 function applyGesture(g: Gesture, dx: number, dy: number): Rect {
@@ -59,7 +81,7 @@ interface TextBlockEditorProps {
   interactive: boolean;
   onSelect: (additive: boolean) => void;
   onStartEdit: () => void;
-  onCommit: (text: string) => void;
+  onCommit: (result: RichResult) => void;
   onCancelEdit: () => void;
   onTransform: (rect: Rect) => void;
 }
@@ -83,48 +105,22 @@ export function TextBlockEditor({
   onTransform,
 }: TextBlockEditorProps) {
   const [preview, setPreview] = useState<Rect | null>(null);
-  const gestureRef = useRef<Gesture | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Character offset of the click that opened the editor, so the caret lands
+  // where the user clicked rather than selecting the whole block. State (not a
+  // ref) so it's set during the double-click handler and read in the next render.
+  const [pendingCaret, setPendingCaret] = useState<number | null>(null);
   const onTransformRef = useRef(onTransform);
-  // Keep the latest callback in a ref for the window listeners below, written
-  // after render (refs must not be assigned during render).
+  // Keep the latest transform callback in a ref for the live drag handlers.
   useEffect(() => {
     onTransformRef.current = onTransform;
   });
 
-  // A live gesture is driven off window listeners so a fast drag never drops
-  // events when the pointer leaves the small box.
-  useEffect(() => {
-    if (!interactive) return;
-    function onMove(e: globalThis.PointerEvent) {
-      const g = gestureRef.current;
-      if (!g) return;
-      setPreview(applyGesture(g, (e.clientX - g.startX) / zoom, (e.clientY - g.startY) / zoom));
-    }
-    function onUp(e: globalThis.PointerEvent) {
-      const g = gestureRef.current;
-      if (!g) return;
-      gestureRef.current = null;
-      const final = applyGesture(g, (e.clientX - g.startX) / zoom, (e.clientY - g.startY) / zoom);
-      setPreview(null);
-      onTransformRef.current(final);
-    }
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [interactive, zoom]);
-
-  useEffect(() => {
-    if (!editing) return;
-    const ta = textareaRef.current;
-    if (ta) {
-      ta.focus();
-      ta.select();
-    }
-  }, [editing]);
+  // Window listeners are attached only while a drag/resize is in flight (see
+  // `startGesture`), not kept alive per text box: a page with many edited blocks
+  // would otherwise run every box's move handler on every pointermove. This ref
+  // holds the teardown; the unmount effect covers a box removed mid-gesture.
+  const dragCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => dragCleanup.current?.(), []);
 
   const rect = preview ?? object.rect;
 
@@ -132,7 +128,23 @@ export function TextBlockEditor({
     (mode: "move" | "resize", anchor: Anchor) => (e: ReactPointerEvent) => {
       if (!interactive || object.locked || editing) return;
       e.stopPropagation();
-      gestureRef.current = { mode, anchor, startX: e.clientX, startY: e.clientY, rect: object.rect };
+      const g: Gesture = { mode, anchor, startX: e.clientX, startY: e.clientY, rect: object.rect };
+      const delta = (ev: globalThis.PointerEvent) =>
+        applyGesture(g, (ev.clientX - g.startX) / zoom, (ev.clientY - g.startY) / zoom);
+      const onMove = (ev: globalThis.PointerEvent) => setPreview(delta(ev));
+      const onUp = (ev: globalThis.PointerEvent) => {
+        const final = delta(ev);
+        dragCleanup.current?.();
+        setPreview(null);
+        onTransformRef.current(final);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      dragCleanup.current = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        dragCleanup.current = null;
+      };
     };
 
   const containerStyle: CSSProperties = {
@@ -149,6 +161,8 @@ export function TextBlockEditor({
   const textStyle: CSSProperties = {
     fontFamily: object.fontFamily,
     fontSize: object.fontSize * zoom,
+    fontWeight: object.bold ? 700 : 400,
+    fontStyle: object.italic ? "italic" : "normal",
     color: object.color,
     textAlign: object.align,
     lineHeight: object.lineHeight,
@@ -156,35 +170,29 @@ export function TextBlockEditor({
     wordBreak: "break-word",
     width: "100%",
     height: "100%",
-    overflow: "hidden",
   };
 
   if (editing) {
     return (
-      <div style={containerStyle} data-text-object={object.id}>
-        <textarea
-          ref={textareaRef}
-          defaultValue={object.text}
-          onPointerDown={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.preventDefault();
-              onCancelEdit();
-            } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              onCommit((e.target as HTMLTextAreaElement).value);
-            }
+      // Height is `auto` (min the box height) so the box hugs the text as it grows.
+      <div style={{ ...containerStyle, height: "auto", minHeight: rect.height * zoom }} data-text-object={object.id}>
+        <RichTextEditor
+          text={object.text}
+          runs={object.runs}
+          base={{
+            fontFamily: object.fontFamily,
+            fontSize: object.fontSize,
+            color: object.color,
+            bold: Boolean(object.bold),
+            italic: Boolean(object.italic),
+            lineHeight: object.lineHeight,
+            align: object.align,
           }}
-          onBlur={(e) => onCommit(e.target.value)}
-          style={{
-            ...textStyle,
-            resize: "none",
-            border: "none",
-            outline: "2px solid var(--primary)",
-            background: "rgba(255,255,255,0.96)",
-            padding: 0,
-            margin: 0,
-          }}
+          zoom={zoom}
+          caretIndex={pendingCaret}
+          onCommit={onCommit}
+          onCancel={onCancelEdit}
+          style={{ width: "100%", padding: 0, margin: 0 }}
         />
       </div>
     );
@@ -195,6 +203,9 @@ export function TextBlockEditor({
       style={containerStyle}
       data-text-object={object.id}
       className={interactive ? "cursor-move" : undefined}
+      // Keep the double-click that starts editing from moving focus to the
+      // scroll container, which would instantly blur the textarea we mount.
+      onMouseDown={interactive ? (e) => e.preventDefault() : undefined}
       onPointerDown={(e) => {
         if (!interactive) return;
         e.stopPropagation();
@@ -203,11 +214,28 @@ export function TextBlockEditor({
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
+        const left = e.currentTarget.getBoundingClientRect().left;
+        setPendingCaret(
+          caretIndexAtX({
+            text: object.text,
+            xPx: e.clientX - left,
+            fontSizePx: object.fontSize * zoom,
+            fontFamily: object.fontFamily,
+            bold: object.bold,
+            italic: object.italic,
+          }),
+        );
         onStartEdit();
       }}
     >
-      <div style={{ ...textStyle, pointerEvents: "none", userSelect: "none" }}>
-        {object.text ? object.text : <span style={{ opacity: 0.4 }}>Text…</span>}
+      <div style={{ ...textStyle, overflow: "visible", pointerEvents: "none", userSelect: "none" }}>
+        {object.runs && object.runs.length ? (
+          object.runs.map((r, i) => <RunSpan key={i} run={r} object={object} zoom={zoom} />)
+        ) : object.text ? (
+          object.text
+        ) : (
+          <span style={{ opacity: 0.4 }}>Text…</span>
+        )}
       </div>
       {selected && interactive ? (
         <>

@@ -6,9 +6,16 @@ export function analyzePdfFont(name?: string): FontReference {
   const raw = name ?? "Helvetica";
   const withoutSubset = raw.replace(/^[A-Z]{6}\+/, "");
   const lower = withoutSubset.toLowerCase();
-  const serif = /times|serif|garamond|georgia/.test(lower);
-  const mono = /courier|mono|console/.test(lower);
-  const bold = /bold|black|heavy|demi/.test(lower);
+  // pdf.js often reports only a generic CSS family ("serif" / "sans-serif" /
+  // "monospace") because the embedded font is subsetted. Detect mono and sans
+  // first so the "serif" substring inside "sans-serif" never misclassifies.
+  const mono = /courier|mono|consol/.test(lower);
+  const sans =
+    !mono && /sans|arial|helvetica|verdana|calibri|tahoma|segoe|roboto|noto sans|liberation sans|nimbussan|frutiger|univers/.test(lower);
+  const serif =
+    !mono && !sans &&
+    /serif|times|roman|georgia|garamond|minion|cambria|palatino|book ?antiqua|nimbusrom|liberation serif|stix|cmr|computer modern/.test(lower);
+  const bold = /bold|black|heavy|demi|semibold|\bmedi\b/.test(lower);
   const italic = /italic|oblique/.test(lower);
   const fallbackFamily = mono ? "Courier New" : serif ? "Times New Roman" : "Arial";
 

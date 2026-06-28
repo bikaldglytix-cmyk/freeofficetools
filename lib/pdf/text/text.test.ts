@@ -24,6 +24,7 @@ import {
   textBlockToEditorObject,
   updateTextContentOperation,
 } from "./operations";
+import { normalizeRuns, runStyleKey, runsFromSpans } from "./rich-runs";
 import { createNewTextInstruction, createWhiteoutRestampInstruction } from "./whiteout";
 import { groupOcrWords, ocrLayerToTextObjects } from "./ocr";
 
@@ -32,6 +33,7 @@ const OPTS: Required<ReconstructionOptions> = {
   wordGapRatio: 0.42,
   paragraphGapRatio: 1.25,
   columnGapRatio: 3,
+  fontSizeJumpRatio: 0.2,
 };
 
 function run(text: string, x: number, y: number, w = 20, h = 14): GlyphRun {
@@ -163,13 +165,17 @@ describe("text/operations", () => {
     expect((op.object.metadata.export as { kind: string }).kind).toBe("new-text");
   });
 
-  it("maps a style change onto UPDATE_TEXT fields", () => {
-    const op = styleTextOperation("page1", "obj1", { fontSize: 22, color: "#ff0000", align: "center" });
+  it("maps a style change onto UPDATE_TEXT fields and preserves the whiteout region", () => {
+    const obj = textBlockToEditorObject(nativeBlock()); // source "original", carries export.whiteout
+    const op = styleTextOperation("page1", obj, { fontSize: 22, color: "#ff0000", align: "center" });
     expect(op.type).toBe("UPDATE_TEXT");
     if (op.type !== "UPDATE_TEXT") throw new Error("unreachable");
     expect(op.changes.fontSize).toBe(22);
     expect(op.changes.color).toBe("#ff0000");
     expect(op.changes.align).toBe("center");
+    // Regression: styling must not clobber the original-text mask/redaction bounds.
+    const exp = (op.changes.metadata as { export?: { whiteout?: { bounds?: unknown[] } } }).export;
+    expect(exp?.whiteout?.bounds?.length).toBeGreaterThan(0);
   });
 
   it("produces a whiteout-restamp replacement for native text", () => {
@@ -179,17 +185,85 @@ describe("text/operations", () => {
     expect((op.object.metadata.export as { kind: string }).kind).toBe("whiteout-restamp");
   });
 
-  it("converts an UPDATE_TEXT content edit with restamp metadata", () => {
-    const op = updateTextContentOperation("page1", "obj1", "Edited");
+  it("converts an UPDATE_TEXT content edit, preserving restamp/whiteout metadata", () => {
+    const obj = textBlockToEditorObject(nativeBlock()); // source "original", carries export.whiteout
+    const op = updateTextContentOperation("page1", obj, "Edited");
     expect(op.type).toBe("UPDATE_TEXT");
     if (op.type !== "UPDATE_TEXT") throw new Error("unreachable");
     expect(op.changes.text).toBe("Edited");
+    const exp = (op.changes.metadata as { export?: { text?: string; whiteout?: { bounds?: unknown[] } } }).export;
+    expect(exp?.text).toBe("Edited");
+    // Regression: the original-text mask/redaction bounds survive the content edit.
+    expect(exp?.whiteout?.bounds?.length).toBeGreaterThan(0);
   });
 
   it("converts a text block into an editor object", () => {
     const editorObject = textBlockToEditorObject(nativeBlock());
     expect(editorObject.kind).toBe("text");
     expect(editorObject.text).toContain("Hello");
+  });
+
+  it("threads per-run formatting through a native replacement (mixed-bold fix)", () => {
+    const runs = [
+      { text: "keywords", bold: true, fontFamily: "Arial", fontSize: 12, color: "#000000" },
+      { text: ": one two", bold: false, fontFamily: "Arial", fontSize: 12, color: "#000000" },
+    ];
+    const op = createReplacementTextOperation({ source: nativeBlock(), text: "keywords: one two", runs });
+    if (op.type !== "ADD_TEXT") throw new Error("unreachable");
+    expect(op.object.runs).toHaveLength(2);
+    // Only the first run is bold — changing the rest of the line can't unbold it.
+    expect(op.object.runs?.[0]).toMatchObject({ text: "keywords", bold: true });
+    expect(op.object.runs?.[1]).toMatchObject({ bold: false });
+  });
+
+  it("updates content + runs together and keeps the whiteout region", () => {
+    const obj = textBlockToEditorObject(nativeBlock());
+    const runs = [{ text: "Edited", bold: true }];
+    const op = updateTextContentOperation("page1", obj, "Edited", undefined, runs);
+    if (op.type !== "UPDATE_TEXT") throw new Error("unreachable");
+    expect(op.changes.text).toBe("Edited");
+    expect(op.changes.runs).toEqual(runs);
+    const exp = (op.changes.metadata as { export?: { whiteout?: { bounds?: unknown[] } } }).export;
+    expect(exp?.whiteout?.bounds?.length).toBeGreaterThan(0);
+  });
+
+  it("propagates a whole-block style change onto existing runs", () => {
+    const base = textBlockToEditorObject(nativeBlock());
+    const withRuns = { ...base, runs: [{ text: "a", bold: false }, { text: "b", bold: true }] };
+    const op = styleTextOperation("page1", withRuns, { fontSize: 20 });
+    if (op.type !== "UPDATE_TEXT") throw new Error("unreachable");
+    expect(op.changes.runs).toHaveLength(2);
+    expect(op.changes.runs?.every((r) => r.fontSize === 20)).toBe(true);
+    // ...without flattening the per-run weight that makes the line mixed.
+    expect(op.changes.runs?.[0].bold).toBe(false);
+    expect(op.changes.runs?.[1].bold).toBe(true);
+  });
+});
+
+describe("text/rich-runs", () => {
+  it("builds one run per native span, carrying its style", () => {
+    const block = nativeBlock();
+    const runs = runsFromSpans(block.lines[0].spans);
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.map((r) => r.text).join("")).toContain("Hello");
+    expect(runs[0]).toHaveProperty("fontSize");
+  });
+
+  it("merges adjacent runs that share a style and drops empties", () => {
+    const merged = normalizeRuns([
+      { text: "foo", bold: true },
+      { text: "bar", bold: true },
+      { text: "", bold: true },
+      { text: "baz", bold: false },
+    ]);
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toMatchObject({ text: "foobar", bold: true });
+    expect(merged[1]).toMatchObject({ text: "baz", bold: false });
+  });
+
+  it("distinguishes runs by style key", () => {
+    expect(runStyleKey({ text: "x", bold: true })).not.toBe(runStyleKey({ text: "x", bold: false }));
+    expect(runStyleKey({ text: "a", bold: true })).toBe(runStyleKey({ text: "b", bold: true }));
   });
 });
 

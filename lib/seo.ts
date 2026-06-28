@@ -20,6 +20,21 @@ function ogImageFor(title: string): string {
   return `/api/og?title=${encodeURIComponent(title)}`;
 }
 
+/** Google truncates titles around here; keep the rendered <title> under it. */
+const TITLE_MAX = 60;
+
+/**
+ * Append the brand only when it still fits under the SERP truncation limit.
+ * Longer, keyword-rich titles render on their own (the brand would only get cut
+ * off anyway), and a title that already contains the brand is never doubled.
+ * Returned as `{ absolute }` so Next never re-applies the layout title template.
+ */
+export function brandedTitle(title: string): string {
+  const branded = `${title} | ${siteConfig.name}`;
+  if (title.includes(siteConfig.name)) return title;
+  return branded.length <= TITLE_MAX ? branded : title;
+}
+
 /** Single source of truth for page metadata: canonical, Open Graph and Twitter. */
 export function buildMetadata({
   title,
@@ -32,7 +47,7 @@ export function buildMetadata({
   const url = canonical(path);
   const image = ogImage ?? ogImageFor(title);
   return {
-    title,
+    title: { absolute: brandedTitle(title) },
     description,
     keywords: keywords && keywords.length ? keywords : undefined,
     alternates: { canonical: url },
@@ -111,7 +126,7 @@ export function mediaApplicationJsonLd(tool: MediaToolDefinition) {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: `${tool.name} — ${siteConfig.name}`,
-    url: canonical(`/${tool.slug}`),
+    url: canonical(`/media-tools/${tool.slug}`),
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Any (web browser)",
     browserRequirements: "Requires a modern web browser with JavaScript enabled.",
@@ -139,7 +154,7 @@ export function officeApplicationJsonLd(tool: OfficeToolDefinition) {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: `${tool.name} — ${siteConfig.name}`,
-    url: canonical(`/${tool.slug}`),
+    url: canonical(`/office-tools/${tool.slug}`),
     applicationCategory: "BusinessApplication",
     operatingSystem: "Any (web browser)",
     browserRequirements: "Requires a modern web browser with JavaScript enabled.",

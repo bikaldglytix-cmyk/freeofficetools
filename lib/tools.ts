@@ -37,7 +37,7 @@ export interface ToolDefinition {
 
   /** Short, card-friendly description. */
   short: string;
-  /** SEO <title> without brand (a template appends "| FreeOfficeTools"). */
+  /** SEO <title> without brand; buildMetadata() appends the brand only when it fits. */
   title: string;
   metaDescription: string;
   h1: string;
@@ -331,7 +331,7 @@ export const tools: ToolDefinition[] = [
     short: "Convert each PDF page into a JPG image.",
     title: "PDF to JPG — Convert PDF Pages to Images Free",
     metaDescription:
-      "Convert PDF to JPG online for free. Turn each PDF page into a high-quality image in your browser and download them as a ZIP. No sign-up, no uploads, fully private.",
+      "Convert PDF to JPG online for free. Turn each PDF page into a high-quality image and download them as a ZIP — no sign-up, no uploads, fully private.",
     h1: "Convert PDF to JPG",
     heroSubtitle: "Turn every PDF page into a high-quality JPG image, ready to download.",
     keywords: ["pdf to jpg", "pdf to image", "convert pdf to jpg", "pdf to jpeg", "export pdf pages as images"],
@@ -364,7 +364,7 @@ export const tools: ToolDefinition[] = [
     short: "Add a text watermark across every PDF page.",
     title: "Watermark PDF — Add Text Watermark Free",
     metaDescription:
-      "Add a watermark to a PDF online for free. Stamp text like CONFIDENTIAL or DRAFT across every page in your browser, with adjustable size and opacity. Fully private.",
+      "Add a watermark to a PDF free. Stamp text like CONFIDENTIAL or DRAFT across every page, with adjustable size and opacity — in your browser, fully private.",
     h1: "Add a watermark to a PDF",
     heroSubtitle: "Stamp text like CONFIDENTIAL or DRAFT across your pages, with control over size and opacity.",
     keywords: ["watermark pdf", "add watermark to pdf", "pdf watermark online", "stamp pdf", "draft watermark pdf"],
@@ -394,28 +394,29 @@ export const tools: ToolDefinition[] = [
     category: "pdf",
     icon: FilePenLine,
     processing: "client",
-    short: "Open, read, search and navigate a PDF right in your browser.",
-    title: "Edit PDF — View, Search & Navigate PDFs Online Free",
+    short: "Edit text, highlight, draw, sign and annotate a PDF, then download it.",
+    title: "Free Online PDF Editor — Edit PDF Online Free",
     metaDescription:
-      "Open and read PDFs online for free. Zoom, pan, search the full text, jump between pages and select text — all in your browser. No sign-up, no uploads, fully private.",
-    h1: "Edit a PDF",
-    heroSubtitle: "Open your PDF to read, zoom, search and navigate it instantly — everything stays on your device.",
-    keywords: ["edit pdf", "pdf editor", "view pdf online", "pdf viewer", "search pdf", "read pdf online"],
+      "Free online PDF editor. Edit text, highlight, draw, add shapes, signatures and annotations in your browser. Fully private — no watermarks, no sign-up.",
+    h1: "Free Online PDF Editor",
+    heroSubtitle: "A powerful free PDF editor online. Edit text, sign, draw, and annotate your PDF instantly — everything stays on your device.",
+    keywords: ["free online pdf editor", "free pdf editor online", "edit pdf", "pdf editor", "edit pdf text", "annotate pdf", "sign pdf", "free pdf editor"],
     intro: [
-      "The PDF editor opens your document in a fast, private viewer built for working with real files: render every page crisply, zoom in for detail, pan around large pages, search the full text, and jump between pages from a thumbnail sidebar. Text stays selectable, so you can copy straight out of the page.",
-      "Everything happens in your browser. Your PDF is never uploaded, there is no account to create, and there is no watermark. This first release focuses on viewing and navigation; annotation, text editing and export build on the same private foundation.",
+      "A full PDF editor that runs entirely in your browser. Edit existing text in place or add new text boxes, highlight passages, draw freehand, add rectangles, circles, lines and arrows, drop comments and sticky notes, sign the document and stamp it — then download a finished PDF with every change flattened into the page.",
+      "Everything happens on your device. Your PDF is never uploaded, there is no account to create, and there is no watermark. Zoom, pan, search the full text and jump between pages from the thumbnail sidebar while you work, with unlimited undo and redo.",
     ],
     steps: [
       { title: "Open your PDF", text: "Drag your PDF into the box or click to choose it from your device." },
-      { title: "Read and explore", text: "Zoom and pan, search the full text, and use the thumbnail sidebar to jump between pages." },
-      { title: "Select and copy", text: "Highlight text directly on the page to copy it — the text layer is fully selectable." },
+      { title: "Make your edits", text: "Pick a tool to edit text, highlight, draw, add shapes, comment, sign or stamp anywhere on the page." },
+      { title: "Download the result", text: "Click Download to save a new PDF with all of your edits baked in — ready to share or print." },
     ],
     faqs: [
-      { q: "Is my PDF uploaded anywhere?", a: "No. The document is opened and rendered entirely in your browser, so it never leaves your device." },
-      { q: "Can I search inside the PDF?", a: "Yes. Press Ctrl/⌘+F or open the search bar to find any text in the document and jump between matches." },
-      { q: "Can I select and copy text?", a: "Yes. The viewer renders a real text layer over each page, so you can select and copy text just like in a desktop reader." },
+      { q: "Is my PDF uploaded anywhere?", a: "No. The document is opened, edited and exported entirely in your browser, so it never leaves your device." },
+      { q: "Can I edit the existing text in a PDF?", a: "Yes. Switch on the text tool and click any text block to edit it in place, or add a new text box anywhere on the page." },
+      { q: "What can I add to a PDF?", a: "Highlights, freehand drawing, rectangles, circles, lines, arrows, comments, sticky notes, typed signatures and stamps — each can be moved, resized and deleted." },
+      { q: "How do I save my edits?", a: "Click the Download button in the toolbar. Your edits are flattened onto the pages and a new PDF is downloaded — no watermark and no sign-up." },
+      { q: "Can I undo a change?", a: "Yes. Use the undo and redo buttons or Ctrl/⌘+Z and Ctrl/⌘+Shift+Z to step backward and forward through your edits." },
       { q: "Does it work with large PDFs?", a: "Yes. Pages are rendered only as you scroll to them (virtualization), so even long documents stay responsive." },
-      { q: "Can I edit the text or add annotations yet?", a: "This release covers viewing, search and navigation. Annotation, text editing and export are rolling out on top of the same private, in-browser engine." },
     ],
     related: ["merge-pdf", "watermark-pdf", "compress-pdf", "rotate-pdf"],
     accept: "application/pdf,.pdf",

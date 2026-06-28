@@ -17,10 +17,11 @@ export interface ToolCardItem {
 }
 
 /**
- * Canonical path for a tool. PDF tools live under /pdf-tools/<slug>; media and
- * Office tools use exact-match root slugs (/video-to-mp3, /word-to-pdf) for the
- * strongest keyword targeting. Centralised here so links stay consistent.
+ * Canonical path for a tool. Every category nests its tools under its hub so the
+ * URL structure stays consistent: PDF tools at /pdf-tools/<slug>, Office tools at
+ * /office-tools/<slug>, media tools at /media-tools/<slug>. Centralised here so
+ * links stay consistent everywhere.
  */
 export function toolHref(tool: { category: ToolCategory; slug: string }): string {
-  return tool.category === "pdf" ? `/pdf-tools/${tool.slug}` : `/${tool.slug}`;
+  return `/${tool.category}-tools/${tool.slug}`;
 }

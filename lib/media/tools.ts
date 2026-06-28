@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Music, FileAudio, AudioLines, Headphones, Minimize2, Scissors } from "lucide-react";
+import { Music, FileAudio, AudioLines, Headphones, Minimize2, Scissors, Video, Eraser, ScanSearch, FileEdit, ImageIcon, Shrink } from "lucide-react";
 
 import type { ToolStep, ToolFaq } from "@/lib/tools";
 import type { MediaEngine, MediaOptions } from "@/lib/media/engine";
@@ -24,7 +24,7 @@ export interface MediaToolDefinition {
   /** Engine command this tool runs (see lib/media/engine.ts). */
   engine: MediaEngine;
   /** Which interactive runner to render. */
-  runner: "convert" | "trim";
+  runner: "convert" | "trim" | "inspect" | "edit" | "image-convert" | "image-compress";
 
   short: string;
   title: string;
@@ -114,7 +114,7 @@ export const mediaTools: MediaToolDefinition[] = [
     engine: "mp4-to-mp3",
     runner: "convert",
     short: "Turn an MP4 video into an MP3 audio file in seconds.",
-    title: "MP4 to MP3 Converter - Free, Private & Online",
+    title: "MP4 to MP3 — Free & Private Converter",
     metaDescription:
       "Convert MP4 to MP3 free, directly in your browser. Extract audio from MP4 video with no uploads and no sign-up. Fast and private on desktop and mobile.",
     h1: "MP4 to MP3 Converter",
@@ -153,7 +153,7 @@ export const mediaTools: MediaToolDefinition[] = [
     engine: "audio-converter",
     runner: "convert",
     short: "Convert audio between MP3, WAV, M4A, OGG and FLAC.",
-    title: "Audio Converter - Free Online Audio Format Converter",
+    title: "Audio Converter — MP3, WAV, M4A, OGG, FLAC",
     metaDescription:
       "Free online audio converter. Convert between MP3, WAV, M4A, AAC, OGG and FLAC in your browser. No uploads, no sign-up — private and fast on any device.",
     h1: "Audio Converter",
@@ -248,7 +248,7 @@ export const mediaTools: MediaToolDefinition[] = [
     engine: "video-compressor",
     runner: "convert",
     short: "Make video files smaller while keeping them watchable.",
-    title: "Video Compressor - Reduce Video File Size Free",
+    title: "Compress Video — Reduce File Size Free",
     metaDescription:
       "Compress video files free in your browser. Reduce video size for email, upload and sharing with no uploads and no sign-up. Private and fast on any device.",
     h1: "Video Compressor",
@@ -300,7 +300,7 @@ export const mediaTools: MediaToolDefinition[] = [
     engine: "audio-trimmer",
     runner: "trim",
     short: "Cut a clip from an audio file by start and end time.",
-    title: "Audio Trimmer - Cut & Trim Audio Free Online",
+    title: "Audio Trimmer — Cut Audio Free & Online",
     metaDescription:
       "Trim audio files free in your browser. Cut a clip by start and end time with no uploads and no sign-up. Private, fast audio trimming on desktop and mobile.",
     h1: "Audio Trimmer",
@@ -328,6 +328,350 @@ export const mediaTools: MediaToolDefinition[] = [
     action: "Trim audio",
     processingLabel: "Trimming…",
     downloadLabel: "Download clip",
+  },
+  {
+    slug: "mov-to-mp4",
+    name: "MOV to MP4",
+    category: "media",
+    icon: Video,
+    processing: "client",
+    engine: "mov-to-mp4",
+    runner: "convert",
+    short: "Convert Apple MOV videos to universally compatible MP4 files.",
+    title: "MOV to MP4 — Free Online Video Converter",
+    metaDescription:
+      "Convert MOV videos to MP4 format instantly in your browser. Fast, private, and free. No server uploads.",
+    h1: "Convert MOV to MP4",
+    heroSubtitle: "Make your Apple videos playable anywhere.",
+    keywords: ["mov to mp4", "convert mov to mp4", "free mov converter", "apple to mp4"],
+    intro: [
+      "MOV files are great for Apple devices, but they don't always play nicely on Windows, Android, or older TVs. This converter changes your MOV to an MP4, the most widely supported video format in the world.",
+      "The conversion happens entirely in your browser using WebAssembly. Your videos never leave your device, ensuring total privacy and saving you from slow upload times.",
+    ],
+    steps: [
+      { title: "Select video", text: "Drag a .mov file into the box, or click to browse your device." },
+      { title: "Convert to MP4", text: "Click Convert to MP4 and wait a few seconds." },
+      { title: "Download", text: "Save your universally playable MP4 file." },
+    ],
+    faqs: [
+      { q: "Is the video quality reduced?", a: "No. The converter preserves high-quality visuals and audio while changing the container to MP4." },
+      { q: "Is this really private?", a: "Yes. The conversion happens entirely on your own device. Your videos are never uploaded to our servers." },
+      { q: "Will the MP4 play on Windows?", a: "Yes. MP4 is the most universally supported video format and will play natively on Windows, Android, smart TVs, and all web browsers." },
+    ],
+    related: ["video-compressor", "video-to-mp3"],
+    accept: ".mov,video/quicktime",
+    acceptLabel: "MOV video files",
+    maxSizeMb: 1000,
+    action: "Convert to MP4",
+    processingLabel: "Converting…",
+    downloadLabel: "Download MP4",
+  },
+  {
+    slug: "ai-metadata-remover",
+    name: "AI Metadata Remover",
+    category: "media",
+    icon: Eraser,
+    processing: "client",
+    engine: "ai-metadata-remover",
+    runner: "convert",
+    short: "Completely strip all EXIF, XMP, and AI-generated metadata from images.",
+    title: "AI Metadata Remover — Clean Image EXIF",
+    metaDescription:
+      "Remove AI generation tags, EXIF data, GPS locations, and hidden metadata from your images. 100% private, no uploads, works instantly in your browser.",
+    h1: "AI Metadata Remover",
+    heroSubtitle: "Strip all hidden data and AI generation prompts from your images.",
+    keywords: ["ai metadata remover", "remove exif data", "remove image metadata", "strip ai tags", "clean image metadata", "remove midjourney metadata"],
+    intro: [
+      "Every time you take a photo or generate an image with AI (like Midjourney or Stable Diffusion), hidden metadata is embedded into the file. This can include your GPS location, camera settings, or the exact text prompts used to create the AI image.",
+      "Our AI Metadata Remover physically strips 100% of this hidden data. It works by painting your image onto a blank canvas and saving only the raw pixels, permanently destroying any embedded EXIF, XMP, or IPTC profiles. The process runs locally in your browser for absolute privacy."
+    ],
+    steps: [
+      { title: "Select image", text: "Drag a JPG or PNG into the box, or click to browse." },
+      { title: "Clean metadata", text: "Click Remove Metadata. The tool will instantly strip all hidden tags." },
+      { title: "Download", text: "Save your clean, untraceable image file." },
+    ],
+    faqs: [
+      { q: "Does this remove AI generation prompts?", a: "Yes. AI generators embed prompts and model data into XMP metadata tags. This tool completely destroys all XMP tags." },
+      { q: "Is the image quality affected?", a: "The visual quality remains identical. We simply extract the raw pixels and save them without the hidden metadata blocks." },
+      { q: "Is my image uploaded?", a: "No. The metadata removal happens entirely on your device inside your web browser. Your images are never sent to a server." },
+    ],
+    related: ["video-compressor"],
+    accept: "image/jpeg,image/png,image/webp",
+    acceptLabel: "image files (JPG, PNG, WebP)",
+    maxSizeMb: 50,
+    action: "Remove Metadata",
+    processingLabel: "Cleaning…",
+    downloadLabel: "Download clean image",
+  },
+  {
+    slug: "metadata-checker",
+    name: "Metadata Checker",
+    category: "media",
+    icon: ScanSearch,
+    processing: "client",
+    engine: "ai-metadata-remover", // We don't actually use the engine, but it satisfies the type
+    runner: "inspect",
+    short: "Instantly view all EXIF, XMP, and hidden metadata in your image.",
+    title: "Image Metadata Checker — View EXIF Data",
+    metaDescription:
+      "Check EXIF data, GPS locations, camera settings, and hidden AI generation prompts in your images. 100% private, no uploads.",
+    h1: "Metadata Checker",
+    heroSubtitle: "View all hidden EXIF and AI tags embedded in your image.",
+    keywords: ["metadata checker", "view exif data", "read image metadata", "check ai tags", "exif viewer", "midjourney metadata viewer"],
+    intro: [
+      "Digital images contain a surprising amount of hidden information. This includes the camera settings, GPS location, copyright information, and for AI-generated images, the exact prompts used to create them.",
+      "Our Metadata Checker instantly extracts and displays every piece of EXIF, XMP, and IPTC data hidden in your file. The analysis happens entirely in your web browser, ensuring your image is never uploaded to any server."
+    ],
+    steps: [
+      { title: "Select image", text: "Drag a JPG or PNG into the box, or click to browse." },
+      { title: "Extract data", text: "The tool instantly reads the embedded metadata headers." },
+      { title: "Analyze", text: "View the complete breakdown of all hidden tags." },
+    ],
+    faqs: [
+      { q: "Can it read AI generation prompts?", a: "Yes. If the image was generated by Stable Diffusion, Midjourney, or DALL-E and hasn't been scrubbed, the prompts will appear in the XMP or EXIF data." },
+      { q: "Is my image uploaded?", a: "No. The extraction runs completely locally in your browser. Your image is never transmitted." },
+      { q: "What if no metadata is shown?", a: "Then the image has been scrubbed (e.g. by our AI Metadata Remover, or by a social media platform that automatically strips EXIF data)." },
+    ],
+    related: ["ai-metadata-remover", "video-compressor"],
+    accept: "image/jpeg,image/png,image/webp,image/tiff,image/heic",
+    acceptLabel: "image files (JPG, PNG, WebP, HEIC)",
+    maxSizeMb: 50,
+    action: "Check Metadata",
+    processingLabel: "Reading…",
+    downloadLabel: "",
+  },
+  {
+    slug: "metadata-editor",
+    name: "Metadata Editor",
+    category: "media",
+    icon: FileEdit,
+    processing: "client",
+    engine: "ai-metadata-remover", // Satisfies type
+    runner: "edit",
+    short: "Edit or inject custom EXIF metadata into your JPEG images.",
+    title: "EXIF Metadata Editor — Edit Image Tags",
+    metaDescription:
+      "Easily add, modify, or remove EXIF data like Author, Copyright, and Description from your JPEG images. Runs privately in your browser.",
+    h1: "Metadata Editor",
+    heroSubtitle: "Inject or modify custom EXIF tags in your JPEG images.",
+    keywords: ["metadata editor", "edit exif data", "change image metadata", "exif writer", "add copyright to image"],
+    intro: [
+      "Digital images contain EXIF data headers that store details like the camera settings, date taken, and copyright information.",
+      "Our Metadata Editor allows you to directly manipulate these binary headers to add your own Author, Copyright, or Description tags to any JPEG image. All modifications are made instantly in your browser without uploading your files."
+    ],
+    steps: [
+      { title: "Select image", text: "Drag a JPEG file into the box." },
+      { title: "Edit tags", text: "Modify the EXIF properties like Author or Copyright." },
+      { title: "Save", text: "Download your newly tagged image instantly." },
+    ],
+    faqs: [
+      { q: "Which formats are supported?", a: "Standard JPEG (.jpg or .jpeg), PNG, and WebP files are supported. Non-JPEG files will be instantly converted to high-quality JPEGs to inject the EXIF data." },
+      { q: "Is my image uploaded?", a: "No. The EXIF modification runs completely locally in your browser. Your image is never transmitted." },
+    ],
+    related: ["metadata-checker", "ai-metadata-remover"],
+    accept: "image/jpeg,image/png,image/webp",
+    acceptLabel: "JPG, PNG, WebP",
+    maxSizeMb: 50,
+    action: "Edit Metadata",
+    processingLabel: "Saving…",
+    downloadLabel: "Download tagged image",
+  },
+  {
+    slug: "png-to-jpg",
+    name: "PNG to JPG",
+    category: "media",
+    icon: ImageIcon,
+    processing: "client",
+    engine: "ai-metadata-remover", // Satisfies type
+    runner: "image-convert",
+    short: "Instantly convert PNG images to JPG right in your browser.",
+    title: "PNG to JPG — Free Image Converter",
+    metaDescription:
+      "Convert PNG to JPG free in your browser. Shrink large PNG screenshots and photos into compact, widely supported JPG files — no uploads, no sign-up.",
+    h1: "Convert PNG to JPG",
+    heroSubtitle: "Turn bulky PNGs into compact, share-ready JPGs.",
+    keywords: ["png to jpg", "convert png to jpg", "png to jpeg", "reduce png size", "png to jpg converter"],
+    intro: [
+      "PNG is a lossless format that keeps images pixel-perfect, but that also makes photos and screenshots several times larger than they need to be. Converting to JPG re-encodes the image with efficient compression, often cutting the file size by 50–80% with no difference you can see at normal viewing size.",
+      "JPG (also called JPEG) is the format email clients, web forms and older devices expect, so switching from PNG clears up “file too large” and “unsupported format” problems in one step. One thing to know: JPG has no transparency, so any see-through areas in your PNG are placed on a white background.",
+      "Everything runs on your device — the PNG is drawn to a canvas and re-encoded as a JPG right in your browser, so nothing is uploaded and there's no watermark or quality cap.",
+    ],
+    steps: [
+      { title: "Select your PNG", text: "Drag a PNG into the box, or click to choose one from your device." },
+      { title: "Convert to JPG", text: "Your image is instantly redrawn and re-encoded as a JPG in the browser." },
+      { title: "Download", text: "Save the smaller, widely compatible JPG file." },
+    ],
+    faqs: [
+      { q: "Will the JPG be smaller than my PNG?", a: "Almost always — JPG's compression typically shrinks photos and screenshots by 50–80% compared with the same image saved as a PNG." },
+      { q: "What happens to transparent areas?", a: "JPG doesn't support transparency, so any transparent pixels are flattened onto a solid white background during conversion." },
+      { q: "Will I lose image quality?", a: "JPG is lossy, but at normal quality the change is invisible for photos. For logos, line art or text, PNG usually looks crisper — keep those as PNG." },
+      { q: "Does it work on iPhone and Android?", a: "Yes. The converter runs in any modern mobile or desktop browser, with nothing to install." },
+      { q: "Are my images uploaded?", a: "No. The conversion happens entirely in your browser, so your images never leave your device." },
+    ],
+    related: ["jpg-to-png"],
+    accept: "image/png",
+    acceptLabel: "PNG images",
+    maxSizeMb: 50,
+    action: "Convert to JPG",
+    processingLabel: "Converting…",
+    downloadLabel: "Download JPG",
+  },
+  {
+    slug: "jpg-to-png",
+    name: "JPG to PNG",
+    category: "media",
+    icon: ImageIcon,
+    processing: "client",
+    engine: "ai-metadata-remover", // Satisfies type
+    runner: "image-convert",
+    short: "Instantly convert JPG images to lossless PNG.",
+    title: "JPG to PNG — Free Image Converter",
+    metaDescription:
+      "Convert JPG to PNG free in your browser. Get a lossless PNG for editing, graphics and transparency support — no uploads, no sign-up, no quality cap.",
+    h1: "Convert JPG to PNG",
+    heroSubtitle: "Turn JPGs into clean, lossless PNGs.",
+    keywords: ["jpg to png", "convert jpg to png", "jpeg to png", "lossless image", "jpg to png converter"],
+    intro: [
+      "PNG is a lossless format, so once your image is a PNG it won't pick up any more JPG compression artifacts when you edit and re-save it. That makes PNG the better choice for screenshots, logos, diagrams and any image you plan to mark up or layer in a design tool.",
+      "Converting a JPG to PNG also gives you a format that supports transparency, so you can later erase a background or composite the image cleanly. Keep in mind PNG is lossless: the resulting file is usually larger than the JPG, which is the trade-off for that extra clarity and flexibility.",
+      "The conversion happens in your browser — your JPG is decoded and re-saved as a PNG on your own device, with no uploads, no watermark and no sign-up.",
+    ],
+    steps: [
+      { title: "Select your JPG", text: "Drag a JPG into the box, or click to choose one from your device." },
+      { title: "Convert to PNG", text: "Your image is redrawn and saved as a lossless PNG in the browser." },
+      { title: "Download", text: "Save your new PNG file." },
+    ],
+    faqs: [
+      { q: "Will converting recover quality lost by JPG?", a: "No. Detail already lost to JPG compression can't be restored, but a PNG stops any further quality loss when you edit and re-save the image." },
+      { q: "Will the PNG have transparency?", a: "The image itself stays opaque, but PNG supports transparency, so you can erase or cut out a background afterwards in an editor." },
+      { q: "Why is my PNG larger than the JPG?", a: "PNG is lossless, so it stores every pixel exactly. That's great for clarity but means photos in particular end up bigger than the compressed JPG." },
+      { q: "Are my images uploaded?", a: "No. The conversion runs entirely in your browser, so your images stay on your device." },
+    ],
+    related: ["png-to-jpg"],
+    accept: "image/jpeg",
+    acceptLabel: "JPEG images",
+    maxSizeMb: 50,
+    action: "Convert to PNG",
+    processingLabel: "Converting…",
+    downloadLabel: "Download PNG",
+  },
+  {
+    slug: "heic-to-jpg",
+    name: "HEIC to JPG",
+    category: "media",
+    icon: ImageIcon,
+    processing: "client",
+    engine: "ai-metadata-remover",
+    runner: "image-convert",
+    short: "Convert Apple HEIC photos to standard JPG instantly.",
+    title: "HEIC to JPG — Free iPhone Photo Converter",
+    metaDescription:
+      "Convert iPhone HEIC photos to JPG free in your browser. Make Apple photos open on Windows, Android and the web — no uploads, no app, no sign-up.",
+    h1: "Convert HEIC to JPG",
+    heroSubtitle: "Make iPhone photos open and share anywhere.",
+    keywords: ["heic to jpg", "convert heic to jpg", "iphone photo to jpg", "heic to jpeg", "apple photo converter"],
+    intro: [
+      "Since iOS 11, iPhones save photos as HEIC — a modern format that keeps quality at about half the file size. The catch is that many Windows PCs, Android phones, web uploaders and older apps still can't open HEIC, so the photos show up as “unsupported”.",
+      "Converting HEIC to JPG turns those Apple photos into the format everything understands, so you can attach them to email, upload them to forms and websites, or share them with anyone regardless of device. JPG's compression also keeps the files small and quick to send.",
+      "The HEIC file is decoded and re-encoded to JPG directly in your browser, so your photos are never uploaded to a server — handy for personal pictures you'd rather keep private.",
+    ],
+    steps: [
+      { title: "Select your HEIC photo", text: "Drag a HEIC/HEIF photo into the box, or click to choose one." },
+      { title: "Convert to JPG", text: "The photo is decoded and re-encoded as a standard JPG in your browser." },
+      { title: "Download", text: "Save a JPG that opens on any device." },
+    ],
+    faqs: [
+      { q: "Why won't my HEIC photos open on Windows?", a: "HEIC is an Apple-first format and older Windows and Android versions lack the codec. Converting to JPG makes the photo open everywhere without extra software." },
+      { q: "Does converting reduce photo quality?", a: "The JPG is encoded at high quality, so the result looks the same to the eye. JPG is lossy, but the difference from the HEIC original isn't visible at normal sizes." },
+      { q: "Should I convert to JPG or PNG?", a: "Choose JPG for small, easy-to-share photos. If you need a lossless copy for editing, use HEIC to PNG instead." },
+      { q: "Are my photos uploaded?", a: "No. HEIC decoding and JPG encoding happen on your device, so your photos never leave it." },
+    ],
+    related: ["heic-to-png", "png-to-jpg"],
+    accept: "image/heic,image/heic-sequence,.heic,.heif",
+    acceptLabel: "HEIC images",
+    maxSizeMb: 50,
+    action: "Convert to JPG",
+    processingLabel: "Decoding…",
+    downloadLabel: "Download JPG",
+  },
+  {
+    slug: "heic-to-png",
+    name: "HEIC to PNG",
+    category: "media",
+    icon: ImageIcon,
+    processing: "client",
+    engine: "ai-metadata-remover",
+    runner: "image-convert",
+    short: "Convert Apple HEIC photos to lossless PNG instantly.",
+    title: "HEIC to PNG — Free iPhone Photo Converter",
+    metaDescription:
+      "Convert iPhone HEIC photos to lossless PNG free in your browser. Best for editing and graphics work — no uploads, no app, no sign-up, no quality cap.",
+    h1: "Convert HEIC to PNG",
+    heroSubtitle: "Turn iPhone photos into lossless, editable PNGs.",
+    keywords: ["heic to png", "convert heic to png", "iphone photo to png", "heic to png converter", "apple photo converter"],
+    intro: [
+      "iPhones save photos as HEIC, which most Windows PCs, Android devices and websites can't open. Converting to PNG fixes that compatibility problem — and unlike JPG, PNG is lossless, so the converted image is stored pixel-for-pixel with no compression artifacts.",
+      "That makes HEIC → PNG the right choice when you plan to edit the photo, drop it into a design or document, or need the crispest possible copy. If you just want a small file to email or share, HEIC → JPG is usually the better pick, since PNG copies of photos are noticeably larger.",
+      "Your HEIC photo is decoded and re-saved as a PNG entirely in your browser, with no uploads, so even personal photos stay on your own device.",
+    ],
+    steps: [
+      { title: "Select your HEIC photo", text: "Drag a HEIC/HEIF photo into the box, or click to choose one." },
+      { title: "Convert to PNG", text: "The photo is decoded and saved as a lossless PNG in your browser." },
+      { title: "Download", text: "Save a high-quality PNG that opens anywhere." },
+    ],
+    faqs: [
+      { q: "Should I choose PNG or JPG?", a: "Pick PNG for editing or maximum quality; pick JPG for a small, easy-to-share file. PNG is lossless and larger; JPG is compressed and smaller." },
+      { q: "Will the PNG keep full quality?", a: "Yes. PNG is lossless, so the converted image preserves all the detail decoded from the HEIC photo." },
+      { q: "Why is the PNG file large?", a: "Lossless compression stores every pixel exactly, so PNG copies of photos are bigger than HEIC or JPG. That's the cost of no quality loss." },
+      { q: "Are my photos uploaded?", a: "No. The HEIC decoding and PNG export run entirely in your browser, so your photos never leave your device." },
+    ],
+    related: ["heic-to-jpg", "jpg-to-png"],
+    accept: "image/heic,image/heic-sequence,.heic,.heif",
+    acceptLabel: "HEIC images",
+    maxSizeMb: 50,
+    action: "Convert to PNG",
+    processingLabel: "Decoding…",
+    downloadLabel: "Download PNG",
+  },
+  {
+    slug: "image-compressor",
+    name: "Image Compressor",
+    category: "media",
+    icon: Shrink,
+    processing: "client",
+    engine: "ai-metadata-remover", // unused for custom runner
+    runner: "image-compress",
+    short: "Reduce image file size while keeping visual quality.",
+    title: "Image Compressor — Shrink JPG, PNG, WebP",
+    metaDescription:
+      "Compress JPG, PNG, WebP and HEIC images free in your browser. Pick a quality level or a target file size in MB — no uploads, no sign-up, private and fast.",
+    h1: "Image Compressor",
+    heroSubtitle: "Shrink images by quality level or to an exact target size.",
+    keywords: ["image compressor", "compress image", "reduce image size", "compress jpg", "compress png", "compress image to target size"],
+    intro: [
+      "Oversized images are the most common reason a page loads slowly or an email bounces back. Compressing an image re-encodes it more efficiently — and, when needed, scales down its dimensions — so the file gets dramatically smaller while still looking good on screen.",
+      "You can compress two ways: choose a quality level for a quick result, or set a target file size in megabytes and the tool searches for the highest quality that still fits just under your limit. JPG and WebP produce the smallest files; PNG and HEIC inputs are re-encoded to an efficient format for you.",
+      "All compression runs locally in your browser, so your images are never uploaded. There's no watermark, no batch limit and no sign-up.",
+    ],
+    steps: [
+      { title: "Select your image", text: "Drag a JPG, PNG, WebP or HEIC image into the box, or click to choose one." },
+      { title: "Pick quality or a target size", text: "Choose a quality preset, or enter a target size in MB to compress just under a limit." },
+      { title: "Download", text: "Save your smaller image, ready to upload, email or post." },
+    ],
+    faqs: [
+      { q: "How much smaller will my image get?", a: "It depends on the source. Large photos and screenshots often shrink by 70–90%; already-optimized images save less. Target-size mode lets you set an exact ceiling." },
+      { q: "Will compressing reduce quality?", a: "Some detail is traded for size. At higher quality the change is hard to notice; pushing for a very small target or low quality will soften fine detail." },
+      { q: "Can I compress to a specific file size?", a: "Yes. Switch to target-size mode and enter a size in MB — the tool lowers quality, and scales dimensions if needed, to land just under it." },
+      { q: "Which formats are supported?", a: "JPG, PNG, WebP and HEIC inputs are accepted. Photos compress smallest as JPG or WebP; PNG/WebP keep transparency." },
+      { q: "Are my images uploaded?", a: "No. Compression happens entirely in your browser, so your images stay on your device." },
+    ],
+    related: ["png-to-jpg", "heic-to-jpg", "jpg-to-png"],
+    accept: "image/jpeg,image/png,image/webp,image/heic,image/heic-sequence,.jpg,.jpeg,.png,.webp,.heic,.heif",
+    acceptLabel: "image files",
+    maxSizeMb: 50,
+    action: "Compress Image",
+    processingLabel: "Compressing…",
+    downloadLabel: "Download Image",
   },
 ];
 

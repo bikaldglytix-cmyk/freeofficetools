@@ -43,7 +43,8 @@ export class OverlayRenderer {
 
   private whiteout(ctx: RenderContext, block: TextBlock): void {
     const masks = whiteoutRects(block);
-    const color = (block.metadata?.whiteoutColor as string | undefined) ?? "#ffffff";
+    const exp = block.metadata?.export as { whiteout?: { fill?: string } } | undefined;
+    const color = exp?.whiteout?.fill ?? (block.metadata?.whiteoutColor as string | undefined) ?? "#ffffff";
     const { rgb: fill } = parseColor(color, { rgb: rgb(1, 1, 1), alpha: 1 });
     for (const rect of masks) {
       const placed = placeBox(rect, ctx.placement, block.rotation);
@@ -85,13 +86,22 @@ export class OverlayRenderer {
 }
 
 /**
- * The rectangles to mask for an edited original block. Prefer per-line bounds
- * from `metadata.whiteoutBounds` (set by the text engine) so multi-line / sparse
- * edits don't over-paint; fall back to the padded block rect.
+ * The rectangles to mask for an edited original block. Prefer the per-line
+ * bounds the text engine records on `metadata.export.whiteout.bounds` (so
+ * multi-line / sparse edits don't over-paint and the mask stays pinned to the
+ * ORIGINAL glyph positions even if the user moves the replacement box). Fall
+ * back to the legacy `metadata.whiteoutBounds` key, then the padded block rect.
  */
 export function whiteoutRects(block: TextBlock): Rect[] {
-  const fromMeta = block.metadata?.whiteoutBounds as Rect[] | undefined;
-  const rects = Array.isArray(fromMeta) && fromMeta.length ? fromMeta : [block.rect];
+  const exp = block.metadata?.export as { whiteout?: { bounds?: Rect[] } } | undefined;
+  const fromExport = exp?.whiteout?.bounds;
+  const legacy = block.metadata?.whiteoutBounds as Rect[] | undefined;
+  const rects =
+    Array.isArray(fromExport) && fromExport.length
+      ? fromExport
+      : Array.isArray(legacy) && legacy.length
+        ? legacy
+        : [block.rect];
   return rects.map(pad);
 }
 

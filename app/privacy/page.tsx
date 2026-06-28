@@ -45,7 +45,7 @@ const sections: { heading: string; body: string[] }[] = [
   {
     heading: "Contact",
     body: [
-      "Questions about privacy? Reach out and we'll be happy to help. As the service grows, this policy may be updated; the date above reflects the latest version.",
+      "Questions about privacy? Reach out and we'll be happy to help. You can contact us anytime at contact@freeofficetools.com or call us at +977 9702046179.",
     ],
   },
 ];

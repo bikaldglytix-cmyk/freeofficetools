@@ -26,11 +26,22 @@ interface StyleResolved {
   underline: boolean;
 }
 
-interface Word {
+/** A contiguous run of glyphs sharing one resolved style. A single "word" may
+ *  hold several fragments when runs split inside it (e.g. bold "keywords" + plain
+ *  ":") — they must be drawn touching, never separated by a word space. */
+interface Fragment {
   text: string;
   style: StyleResolved;
   width: number;
 }
+
+interface Word {
+  frags: Fragment[];
+  width: number;
+}
+
+/** Token stream produced by {@link tokenize}: words, single spaces and breaks. */
+type Token = { kind: "word"; word: Word } | { kind: "space" } | { kind: "break" };
 
 interface Line {
   words: Word[];
@@ -48,17 +59,21 @@ export class TextRenderer {
 
   /** Render a single text block. Public so the pipeline can paint in z-order. */
   draw(ctx: RenderContext, block: TextBlock): void {
-    const words = this.tokenize(ctx, block);
-    if (words.length === 0) return;
+    const tokens = this.tokenize(ctx, block);
+    if (tokens.length === 0) return;
 
     const lineStep = block.fontSize * (block.lineHeight || 1.2);
-    const ascent = block.fontSize * 0.8; // good standard-font approximation
-    const lines = wrap(words, block.rect.width, this.spaceWidthFor(ctx, block));
+    // Place the first baseline where the ORIGINAL glyphs sat when we captured it
+    // (edited native text), so the restamp doesn't drift up/down; otherwise fall
+    // back to a good standard-font ascent approximation.
+    const firstBaseline =
+      typeof block.metadata?.firstBaseline === "number" ? (block.metadata.firstBaseline as number) : block.fontSize * 0.8;
+    const lines = wrap(tokens, block.rect.width, this.spaceWidthFor(ctx, block));
 
     const pivot = mapPoint(block.rect.x, block.rect.y, ctx.placement);
 
     lines.forEach((line, i) => {
-      const baselineY = block.rect.y + ascent + i * lineStep;
+      const baselineY = block.rect.y + firstBaseline + i * lineStep;
       const isLast = i === lines.length - 1;
       let cursorX = block.rect.x + alignOffset(block.align, block.rect.width, line.width);
       const justify = block.align === "justify" && !isLast && line.words.length > 1;
@@ -67,55 +82,84 @@ export class TextRenderer {
         : line.spaceWidth;
 
       line.words.forEach((word, wi) => {
-        const placed = placeBaseline({ x: cursorX, y: baselineY }, pivot, ctx.placement, block.rotation);
-        ctx.page.drawText(word.text, {
-          x: placed.x,
-          y: placed.y,
-          size: word.style.size,
-          font: word.style.font,
-          color: word.style.color,
-          opacity: Math.min(block.opacity, word.style.alpha),
-          rotate: degrees(placed.rotateDeg),
-        });
-        if (word.style.underline) {
-          this.underline(ctx, cursorX, baselineY, word, pivot, block);
+        // Fragments of a word are drawn touching (no word space between them) so
+        // a run boundary inside a word doesn't introduce a phantom gap.
+        for (const frag of word.frags) {
+          const placed = placeBaseline({ x: cursorX, y: baselineY }, pivot, ctx.placement, block.rotation);
+          ctx.page.drawText(frag.text, {
+            x: placed.x,
+            y: placed.y,
+            size: frag.style.size,
+            font: frag.style.font,
+            color: frag.style.color,
+            opacity: Math.min(block.opacity, frag.style.alpha),
+            rotate: degrees(placed.rotateDeg),
+          });
+          if (frag.style.underline) {
+            this.underline(ctx, cursorX, baselineY, frag, pivot, block);
+          }
+          cursorX += frag.width;
         }
-        cursorX += word.width + (wi < line.words.length - 1 ? gap : 0);
+        if (wi < line.words.length - 1) cursorX += gap;
       });
     });
   }
 
-  /** Split block text (or runs) into measured, styled words. */
-  private tokenize(ctx: RenderContext, block: TextBlock): Word[] {
+  /**
+   * Split block text (or runs) into a token stream of words, single spaces and
+   * hard breaks. A word collects every contiguous non-whitespace fragment, even
+   * across run boundaries, so styling that changes mid-word (e.g. "keyword**s**")
+   * stays a single, unspaced word with multiple styled fragments.
+   */
+  private tokenize(ctx: RenderContext, block: TextBlock): Token[] {
     const segments: { text: string; run?: TextRun }[] =
       block.runs && block.runs.length
         ? block.runs.map((r) => ({ text: r.text, run: r }))
         : [{ text: block.text }];
 
-    const out: Word[] = [];
+    const tokens: Token[] = [];
+    let frags: Fragment[] = [];
+    let wordWidth = 0;
+    const flushWord = () => {
+      if (frags.length) {
+        tokens.push({ kind: "word", word: { frags, width: wordWidth } });
+        frags = [];
+        wordWidth = 0;
+      }
+    };
+
     for (const seg of segments) {
       const style = this.resolveStyle(ctx, block, seg.run);
-      // Preserve hard line breaks as sentinel words.
-      const parts = seg.text.split(/(\n)/);
-      for (const part of parts) {
+      for (const part of seg.text.split(/(\n)/)) {
         if (part === "\n") {
-          out.push({ text: "\n", style, width: 0 });
+          flushWord();
+          tokens.push({ kind: "break" });
           continue;
         }
-        for (const token of part.split(/\s+/)) {
-          if (!token) continue;
-          const text = ctx.fonts.sanitize(token, { pageId: ctx.pageId, objectId: block.id });
-          out.push({ text, style, width: ctx.fonts.widthOf(style.font, text, style.size) });
+        // Split into alternating word / whitespace chunks; runs of whitespace
+        // collapse to one word space, matching the previous renderer's spacing.
+        for (const chunk of part.split(/(\s+)/)) {
+          if (!chunk) continue;
+          if (/^\s+$/.test(chunk)) {
+            flushWord();
+            tokens.push({ kind: "space" });
+            continue;
+          }
+          const text = ctx.fonts.sanitize(chunk, { pageId: ctx.pageId, objectId: block.id });
+          const width = ctx.fonts.widthOf(style.font, text, style.size);
+          frags.push({ text, style, width });
+          wordWidth += width;
         }
       }
     }
-    return out;
+    flushWord();
+    return tokens;
   }
 
   private resolveStyle(ctx: RenderContext, block: TextBlock, run?: TextRun): StyleResolved {
     const family = run?.fontFamily ?? block.fontFamily;
-    const bold = run?.bold ?? /bold|black|heavy|semibold|demi/i.test(family);
-    const italic = run?.italic ?? /italic|oblique/i.test(family);
+    const bold = run?.bold ?? block.bold ?? /bold|black|heavy|semibold|demi/i.test(family);
+    const italic = run?.italic ?? block.italic ?? /italic|oblique/i.test(family);
     const { font } = ctx.fonts.resolveFont({ family, bold, italic });
     const { rgb: color, alpha } = parseColor(run?.color ?? block.color);
     return {
@@ -136,19 +180,19 @@ export class TextRenderer {
     ctx: RenderContext,
     startX: number,
     baselineY: number,
-    word: Word,
+    frag: Fragment,
     pivot: { x: number; y: number },
     block: TextBlock,
   ): void {
-    const y = baselineY + word.style.size * 0.12;
+    const y = baselineY + frag.style.size * 0.12;
     const a = placeBaseline({ x: startX, y }, pivot, ctx.placement, block.rotation);
-    const b = placeBaseline({ x: startX + word.width, y }, pivot, ctx.placement, block.rotation);
+    const b = placeBaseline({ x: startX + frag.width, y }, pivot, ctx.placement, block.rotation);
     ctx.page.drawLine({
       start: { x: a.x, y: a.y },
       end: { x: b.x, y: b.y },
-      thickness: Math.max(0.5, word.style.size * 0.06),
-      color: word.style.color,
-      opacity: Math.min(block.opacity, word.style.alpha),
+      thickness: Math.max(0.5, frag.style.size * 0.06),
+      color: frag.style.color,
+      opacity: Math.min(block.opacity, frag.style.alpha),
     });
   }
 }
@@ -164,8 +208,14 @@ function alignOffset(align: TextBlock["align"], boxWidth: number, lineWidth: num
   }
 }
 
-/** Greedy word-wrap. Breaks over-long single words at the character level. */
-function wrap(words: Word[], maxWidth: number, spaceWidth: number): Line[] {
+/**
+ * Greedy word-wrap over the token stream. Consecutive words are separated by one
+ * `spaceWidth`; `break` tokens force a new line; over-long single words overflow
+ * onto their own line rather than being clipped. `space` tokens between words are
+ * implicit (a word is only ever flushed at a space or break), so they don't need
+ * to be re-counted here.
+ */
+function wrap(tokens: Token[], maxWidth: number, spaceWidth: number): Line[] {
   const lines: Line[] = [];
   let current: Word[] = [];
   let width = 0;
@@ -176,11 +226,13 @@ function wrap(words: Word[], maxWidth: number, spaceWidth: number): Line[] {
     width = 0;
   };
 
-  for (const word of words) {
-    if (word.text === "\n") {
+  for (const token of tokens) {
+    if (token.kind === "break") {
       flush();
       continue;
     }
+    if (token.kind === "space") continue; // separator only; see wrap doc comment
+    const word = token.word;
     const addWidth = (current.length ? spaceWidth : 0) + word.width;
     if (current.length && width + addWidth > maxWidth) {
       flush();

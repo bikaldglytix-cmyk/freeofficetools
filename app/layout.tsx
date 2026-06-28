@@ -19,10 +19,11 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
-  title: {
-    default: `${siteConfig.name} — Free PDF & Document Tools`,
-    template: `%s | ${siteConfig.name}`,
-  },
+  // Plain string (no title template): per-page titles are self-branded in
+  // buildMetadata() (lib/seo.ts), which appends the brand only when it fits under
+  // the SERP length limit. A template here would double-brand titles that already
+  // include the brand (e.g. the homepage).
+  title: `${siteConfig.name} — Free PDF & Document Tools`,
   description: siteConfig.description,
   applicationName: siteConfig.name,
   alternates: { canonical: "/" },
@@ -33,16 +34,37 @@ export const metadata: Metadata = {
     title: `${siteConfig.name} — Free PDF & Document Tools`,
     description: siteConfig.description,
     locale: siteConfig.locale,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: `${siteConfig.name} — Free PDF & Document Tools`,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     site: siteConfig.twitter,
+    title: `${siteConfig.name} — Free PDF & Document Tools`,
+    description: siteConfig.description,
+    images: ["/og-image.png"],
   },
   robots: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   verification: siteConfig.googleSiteVerification
     ? { google: siteConfig.googleSiteVerification }
     : undefined,
   category: "technology",
+  icons: {
+    icon: [
+      { url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [
+      { url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: ["/favicon/favicon.ico"],
+  },
 };
 
 export const viewport: Viewport = {
@@ -56,8 +78,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${geistSans.variable} h-full`}>
       <body className="flex min-h-full flex-col antialiased">
+        <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
           <a
             href="#main"
             className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"

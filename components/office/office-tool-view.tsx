@@ -1,7 +1,9 @@
-import { Check, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 
-import type { OfficeToolDefinition, OfficeGroup } from "@/lib/office/tools";
+import type { OfficeToolDefinition } from "@/lib/office/tools";
 import { relatedCards } from "@/lib/registry";
+import { guides } from "@/lib/guides";
 import {
   breadcrumbJsonLd,
   faqJsonLd,
@@ -16,19 +18,14 @@ import { Faq } from "@/components/sections/faq";
 import { RelatedTools } from "@/components/sections/related-tools";
 import { OfficeRunner } from "@/components/office/office-runner";
 
-const GROUP_CRUMB: Record<OfficeGroup, { name: string; path: string }> = {
-  word: { name: "Word tools", path: "/word-tools" },
-  excel: { name: "Excel tools", path: "/excel-tools" },
-  powerpoint: { name: "PowerPoint tools", path: "/powerpoint-tools" },
-};
-
 export function OfficeToolView({ tool }: { tool: OfficeToolDefinition }) {
   const related = relatedCards(tool.related);
-  const groupCrumb = GROUP_CRUMB[tool.group];
+  const relatedGuide = guides.find((g) => g.toolSlug === tool.slug);
+  // The hub is /office-tools; the old per-type hubs (/word-tools, …) only 301 now.
   const crumbs = [
     { name: "Home", path: "/" },
-    groupCrumb,
-    { name: tool.name, path: `/${tool.slug}` },
+    { name: "Office tools", path: "/office-tools" },
+    { name: tool.name, path: `/office-tools/${tool.slug}` },
   ];
 
   return (
@@ -91,6 +88,21 @@ export function OfficeToolView({ tool }: { tool: OfficeToolDefinition }) {
       <div className="mx-auto max-w-3xl">
         <HowTo title={`How to use the ${tool.name.toLowerCase()} converter`} steps={tool.steps} />
       </div>
+
+      {relatedGuide ? (
+        <div className="mx-auto max-w-3xl">
+          <Link
+            href={`/guides/${relatedGuide.slug}`}
+            className="group flex items-center justify-between gap-4 rounded-2xl border border-transparent bg-muted/20 p-5 transition-colors hover:border-border/40 hover:bg-muted/40"
+          >
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">Read the guide</p>
+              <p className="mt-1 font-medium text-foreground">{relatedGuide.h1}</p>
+            </div>
+            <ArrowRight className="size-5 shrink-0 text-primary transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mx-auto max-w-3xl">
         <Faq faqs={tool.faqs} />

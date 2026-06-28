@@ -8,11 +8,11 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 
 export const metadata: Metadata = buildMetadata({
-  title: "Guides — How to Work with PDFs",
+  title: "Guides — Document & Media Tutorials",
   description:
-    "Simple, practical guides for common PDF tasks: how to merge PDFs, reduce file size, convert images to PDF and more. Clear steps with free tools.",
+    "Simple, practical guides for common tasks: how to merge PDFs, convert video to MP3, convert Word to PDF and more. Clear steps with free tools.",
   path: "/guides",
-  keywords: ["pdf guides", "how to pdf", "pdf tutorials"],
+  keywords: ["pdf guides", "media tutorials", "how to convert video", "how to pdf", "office tools tutorials"],
 });
 
 const crumbs = [

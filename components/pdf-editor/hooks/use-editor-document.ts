@@ -12,6 +12,7 @@
 import { useEffect } from "react";
 import { buildDocumentFromViewer } from "@/lib/pdf/editor/integration/from-viewer";
 import { documentStore } from "@/lib/pdf/editor/store/document-store";
+import { textExtractionCache } from "@/lib/pdf/text/extraction";
 import { useViewerDocument, type UseViewerDocument } from "./use-viewer-document";
 
 export function useEditorDocument(file: File | null): UseViewerDocument {
@@ -27,6 +28,10 @@ export function useEditorDocument(file: File | null): UseViewerDocument {
       );
     } else if (viewer.status === "idle") {
       store.closeDocument();
+      // The per-page native-text cache is keyed by document id; once the
+      // document is closed its entries can never be reused, so drop them to
+      // avoid growing memory across multiple opened files in one session.
+      textExtractionCache.clear();
     }
   }, [viewer.status, viewer.doc, file]);
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import { officeTools, officeCategories } from "@/lib/office/tools";
+import { officeTools } from "@/lib/office/tools";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd, canonical } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
@@ -51,7 +51,7 @@ export default function OfficeToolsPage() {
       "@type": "ListItem",
       position: i + 1,
       name: tool.name,
-      url: canonical(`/${tool.slug}`),
+      url: canonical(`/office-tools/${tool.slug}`),
     })),
   };
 
@@ -68,26 +68,11 @@ export default function OfficeToolsPage() {
         </p>
       </header>
 
-      <TrustBar />
 
-      <section aria-label="Office tool categories">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {officeCategories.map((category) => (
-            <Link
-              key={category.slug}
-              href={`/${category.slug}`}
-              className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40 hover:bg-muted/40"
-            >
-              <span className="font-semibold text-foreground group-hover:text-primary">
-                {category.name}
-              </span>
-              <ArrowRight className="size-4 text-primary transition-transform group-hover:translate-x-0.5" />
-            </Link>
-          ))}
-        </div>
-      </section>
 
       <ToolGrid tools={officeTools} />
+
+      <TrustBar />
 
       <div className="rounded-2xl border border-border bg-muted/40 p-6 text-center">
         <p className="text-base font-medium text-foreground">Looking for PDF or media tools?</p>

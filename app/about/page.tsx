@@ -9,10 +9,11 @@ import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = buildMetadata({
-  title: "About",
+  title: "About FreeOfficeTools — The Ultimate Free Office Toolkit",
   description:
-    "FreeOfficeTools offers fast, private, free PDF and document tools that run in your browser — no sign-up, no uploads, no watermarks.",
+    "Learn about FreeOfficeTools, your one-stop solution for all office works. Discover our completely free, deeply private online PDF editor and document converters.",
   path: "/about",
+  keywords: ["about freeofficetools", "free office tools", "one stop solution office", "free online pdf editor", "private pdf tools", "completely free office suite"],
 });
 
 const crumbs = [
@@ -29,23 +30,19 @@ export default function AboutPage() {
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">About {siteConfig.name}</h1>
         <div className="space-y-4 leading-relaxed text-muted-foreground">
           <p>
-            {siteConfig.name} is a growing collection of free document tools built around one idea:
-            getting everyday PDF tasks done should be fast, private and effortless.
+            Welcome to {siteConfig.name}, the ultimate <strong className="text-foreground font-semibold">one-stop solution</strong> for all your office works and document needs. We built this platform with a single, uncompromising vision: to provide a powerful, comprehensive suite of tools that is <strong className="text-foreground font-semibold">100% completely free</strong>, blazingly fast, and built on an absolute guarantee of privacy.
           </p>
           <p>
-            Most of our tools run entirely in your browser. When you merge, split, compress or convert
-            a file, the work happens on your own device — your documents are never uploaded to a
-            server. That makes the tools faster (no upload wait) and far more private, which matters
-            for contracts, IDs, medical records and anything else you&apos;d rather keep to yourself.
+            Whether you need a free online PDF editor, a reliable Word to PDF converter, an Excel data extractor, or tools to compress and merge PDFs, you will find everything you need right here. We've consolidated the fragmented world of office utilities into one seamless, premium experience.
           </p>
           <p>
-            There are no accounts to create, no email to hand over, and no watermarks stamped on your
-            results. We keep the interface clean and the steps obvious, so you can do what you came to
-            do and move on.
+            <strong className="text-foreground font-semibold">Unmatched Privacy Focus:</strong> We believe your data belongs to you. That's why our tools process your files locally inside your browser using cutting-edge WebAssembly technology. Your sensitive documents, financial spreadsheets, and personal PDFs are <strong className="text-foreground font-semibold">never uploaded to our servers</strong>. It's privacy by design, meaning zero risk of data leaks because your files never leave your device.
           </p>
           <p>
-            We&apos;re just getting started. The toolset will keep expanding based on what people
-            actually need — always with the same focus on speed, clarity and privacy.
+            <strong className="text-foreground font-semibold">Completely Free Forever:</strong> You will never hit a paywall here. There are no accounts to create, no credit cards required, no annoying email sign-ups, and absolutely no watermarks stamped on your hard work. Just clean, professional results every single time.
+          </p>
+          <p>
+            Say goodbye to downloading expensive, clunky software. {siteConfig.name} is the only online document platform you will ever need.
           </p>
         </div>
         <Button asChild>

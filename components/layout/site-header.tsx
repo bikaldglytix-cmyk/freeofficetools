@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X, Files } from "lucide-react";
 import { mainNav, siteConfig } from "@/lib/site";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ToolSearch } from "@/components/layout/tool-search";
 import { cn } from "@/lib/utils";
 
 export function SiteHeader() {
@@ -15,21 +16,23 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background">
-      <div className="container-page flex h-16 items-center justify-between gap-4">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-semibold tracking-tight"
-          aria-label={`${siteConfig.name} home`}
-        >
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Files className="size-[18px]" />
-          </span>
-          <span className="text-[1.05rem]">
-            <span className="text-primary">Free</span>OfficeTools
-          </span>
-        </Link>
+      <div className="container-page flex h-16 items-center gap-4">
+        <div className="flex flex-1 items-center">
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-semibold tracking-tight"
+            aria-label={`${siteConfig.name} home`}
+          >
+            <div className="flex size-8 items-center justify-center overflow-hidden rounded-lg bg-primary">
+              <img src="/favicon/android-chrome-192x192.png" alt="FreeOfficeTools Logo" className="size-full object-cover" />
+            </div>
+            <span className="text-[1.05rem]">
+              <span className="text-primary">Free</span>OfficeTools
+            </span>
+          </Link>
+        </div>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex justify-center">
           {mainNav.map((item) => (
             <Link
               key={item.href}
@@ -46,7 +49,10 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-1">
+        <div className="flex flex-1 items-center justify-end gap-1">
+          <div className="hidden md:block">
+            <ToolSearch />
+          </div>
           <ThemeToggle />
           <button
             type="button"
@@ -62,7 +68,10 @@ export function SiteHeader() {
       </div>
 
       <div id="mobile-menu" className={cn("border-t border-border md:hidden", open ? "block" : "hidden")}>
-        <nav aria-label="Mobile" className="container-page flex flex-col gap-1 py-3">
+        <div className="container-page py-3">
+          <ToolSearch />
+        </div>
+        <nav aria-label="Mobile" className="container-page flex flex-col gap-1 py-1 pb-3">
           {mainNav.map((item) => (
             <Link
               key={item.href}

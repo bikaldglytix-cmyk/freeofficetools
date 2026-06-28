@@ -25,9 +25,10 @@ import {
   isSignature,
   isTextBlock,
 } from "../model/guards";
-import type { DocumentState, EditableObject } from "../model/types";
+import type { DocumentState, EditableObject, Rect, TextBlock } from "../model/types";
 import { selectOcrLayer, selectPageObjects } from "../store/selectors";
 import { AnnotationFlattener } from "./annotation-flattener";
+import { regionFromVisualRect, removeTextInRegions, type RemovalRegion } from "./content-redactor";
 import { ExportError, ExportCancelled, errorMessage, throwIfAborted } from "./errors";
 import { ImageRenderer } from "./image-renderer";
 import { MetadataWriter } from "./metadata-writer";
@@ -183,7 +184,11 @@ export class ExportPipeline {
 
       const objects = selectPageObjects(doc, target.pageId);
 
-      // whiteout/redaction masks first (under all content)
+      // TRUE removal: delete edited original glyphs from the copied page's
+      // content stream so they are not extractable underneath the new text.
+      this.removeOriginalText(ctx, objects, skip, diagnostics);
+
+      // whiteout/redaction masks (visual safety net + colored-background cases)
       this.deps.overlay.render(ctx, objects, skip);
 
       // content in z-order (the array is already ascending zIndex)
@@ -201,6 +206,38 @@ export class ExportPipeline {
     }
     // Attribute the per-page wall-clock to the content stages collectively.
     timings.text = nowMs() - renderStart;
+  }
+
+  /**
+   * Delete the glyphs of edited original text from the copied page's content
+   * stream (true removal, not just masking). Best-effort: only runs on an
+   * unrotated copied source page; any failure is reported as info and the
+   * whiteout mask still guarantees the visual result.
+   */
+  private removeOriginalText(
+    ctx: RenderContext,
+    objects: readonly EditableObject[],
+    skip: ReadonlySet<string>,
+    diagnostics: ExportDiagnostic[],
+  ): void {
+    if (!ctx.writer.hasSource() || ctx.placement.rotation !== 0) return;
+    const regions: RemovalRegion[] = [];
+    for (const obj of objects) {
+      if (skip.has(obj.id) || !isTextBlock(obj) || obj.source !== "original") continue;
+      for (const rect of originalTextBounds(obj)) {
+        regions.push(regionFromVisualRect(rect, ctx.placement.mediaHeight));
+      }
+    }
+    if (regions.length === 0) return;
+    const result = removeTextInRegions(ctx.page, regions);
+    if (!result.ok) {
+      diagnostics.push({
+        severity: "info",
+        code: "TEXT_REMOVAL_SKIPPED",
+        message: `Couldn't rewrite the page content stream to delete original text (${result.reason ?? "unknown"}); the edited text is masked instead, and the original may remain extractable underneath.`,
+        pageId: ctx.pageId,
+      });
+    }
   }
 
   private async dispatch(ctx: RenderContext, obj: EditableObject): Promise<void> {
@@ -230,6 +267,17 @@ export class ExportPipeline {
 
 function hasSourcePages(doc: DocumentState): boolean {
   return doc.pageOrder.some((id) => doc.pages[id]?.sourcePageIndex !== null);
+}
+
+/**
+ * The original (pre-edit) bounds of an edited text block, in visual space. The
+ * whiteout-restamp instruction captures these at edit time, so they stay put
+ * even if the user later moves the replacement box; fall back to the live rect.
+ */
+function originalTextBounds(block: TextBlock): Rect[] {
+  const exp = block.metadata?.export as { whiteout?: { bounds?: Rect[] } } | undefined;
+  const bounds = exp?.whiteout?.bounds;
+  return Array.isArray(bounds) && bounds.length ? bounds : [block.rect];
 }
 
 async function verifyOutput(bytes: Uint8Array, expectedPages: number, diagnostics: ExportDiagnostic[]): Promise<void> {

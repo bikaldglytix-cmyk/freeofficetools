@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Arrow, Ellipse, Group, Label, Layer, Line, Rect, Stage, Tag, Text, Transformer } from "react-konva";
+import { Arrow, Ellipse, Group, Image as KonvaImage, Label, Layer, Line, Rect, Stage, Tag, Text, Transformer } from "react-konva";
 import type Konva from "konva";
 import {
   addAnnotationOperation,
@@ -11,7 +11,6 @@ import {
   createHighlightAnnotation,
   createLineAnnotation,
   createShapeAnnotation,
-  createSignatureAnnotation,
   createStampAnnotation,
   createStickyNoteAnnotation,
   editorObjectToAnnotation,
@@ -26,7 +25,7 @@ import {
   type PdfAnnotation,
   type Point,
 } from "@/lib/pdf/annotations";
-import type { AnnotationObject, EditableObject, PageId, Rect as PdfRect, SignatureObject } from "@/lib/pdf/editor/model/types";
+import type { AnnotationObject, EditableObject, ImageObject, PageId, Rect as PdfRect, SignatureObject } from "@/lib/pdf/editor/model/types";
 import type { EditOperation } from "@/lib/pdf/editor/operations/types";
 import { ops } from "@/lib/pdf/editor/operations/types";
 import { documentStore } from "@/lib/pdf/editor/store/document-store";
@@ -59,13 +58,17 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
       .map((object) => ({ object, annotation: editorObjectToAnnotation(object, docState.meta.id) }));
   }, [docState, objects]);
 
+  // Images render directly (no annotation conversion); they reuse the same
+  // selection + Transformer wiring so move/resize/rotate work like everything else.
+  const imageObjects = useMemo(() => objects.filter((o): o is ImageObject => o.kind === "image"), [objects]);
+
   const selectedIds = useMemo(() => (selection.pageId === pageId ? selection.ids : []), [pageId, selection.ids, selection.pageId]);
 
   useEffect(() => {
     const nodes = selectedIds.map((id) => shapeRefs.current.get(id)).filter(Boolean) as Konva.Node[];
     transformerRef.current?.nodes(nodes);
     transformerRef.current?.getLayer()?.batchDraw();
-  }, [selectedIds, annotations]);
+  }, [selectedIds, annotations, imageObjects]);
 
   useEffect(() => {
     if (tool !== "highlight" || !pageElement || !pageId || !docState) return;
@@ -113,7 +116,10 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
     if (!ctx) return;
 
     if (tool === "select") {
-      const hit = hitTestAnnotation(objects, point);
+      // Topmost image under the point wins, then annotations; otherwise start a
+      // marquee. (Images aren't annotations, so they need their own hit-test.)
+      const hitImage = [...imageObjects].reverse().find((o) => pointInRect(point, o.rect));
+      const hit = hitImage ?? hitTestAnnotation(objects, point);
       if (hit) select(pageId, evt.evt.shiftKey ? [...new Set([...selectedIds, hit.id])] : [hit.id]);
       else {
         clearSelection();
@@ -131,7 +137,8 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
       return;
     }
     if (tool === "signature") {
-      dispatch(addAnnotationOperation(createSignatureAnnotation(ctx, { x: point.x, y: point.y, width: 170, height: 54 }, { mode: "typed", text: createText("Signature", "Signature"), fontFamily: "cursive" })));
+      // Signatures are created in the custom signature box (see pdf-viewer) and
+      // placed once — a page click must NOT stamp another one.
       return;
     }
     if (tool === "stamp") {
@@ -140,7 +147,7 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
     }
 
     setDraft({ type: tool, start: point, end: point, path: tool === "draw" ? [point] : undefined });
-  }, [clearSelection, createText, dispatch, makeContext, objects, pageId, select, selectedIds, stagePoint, tool]);
+  }, [clearSelection, createText, dispatch, imageObjects, makeContext, objects, pageId, select, selectedIds, stagePoint, tool]);
 
   const onPointerMove = useCallback((evt: Konva.KonvaEventObject<PointerEvent>) => {
     if (!draft) return;
@@ -191,6 +198,8 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
     if (rotation !== undefined) changes.rotation = rotation;
     if (object.kind === "signature") {
       dispatch(ops.updateSignature(pageId, object.id, changes as Partial<SignatureObject>));
+    } else if (object.kind === "image") {
+      dispatch(ops.updateImage(pageId, object.id, changes as Partial<ImageObject>));
     } else {
       dispatch(ops.updateAnnotation(pageId, object.id, changes as Partial<AnnotationObject>));
     }
@@ -212,6 +221,20 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
         onPointerUp={onPointerUp}
       >
         <Layer listening={tool !== "highlight"}>
+          {imageObjects.map((object) => (
+            <ImageShape
+              key={object.id}
+              object={object}
+              selected={selectedIds.includes(object.id)}
+              draggable={tool === "select"}
+              setNode={(node) => {
+                if (node) shapeRefs.current.set(object.id, node);
+                else shapeRefs.current.delete(object.id);
+              }}
+              onSelect={() => select(pageId, [object.id])}
+              onChange={updateRect}
+            />
+          ))}
           {annotations.map(({ object, annotation }) => (
             <AnnotationShape
               key={object.id}
@@ -243,22 +266,41 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
   );
 }
 
-function AnnotationShape({
-  object,
-  annotation,
-  selected,
-  setNode,
-  onSelect,
-  onChange,
-}: {
-  object: EditableObject;
-  annotation: PdfAnnotation;
-  selected: boolean;
-  setNode: (node: Konva.Node | null) => void;
-  onSelect: () => void;
-  onChange: (object: EditableObject, rect: PdfRect, rotation?: number) => void;
-}) {
-  const common = {
+/** Load a data-URL/image into an HTMLImageElement for Konva (drawn signatures,
+ *  uploaded images). Returns null until decoded. */
+function useHtmlImage(src?: string): HTMLImageElement | null {
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!src) return; // nothing to load (typed signatures); no synchronous setState
+    let cancelled = false;
+    const image = new window.Image();
+    image.onload = () => {
+      if (!cancelled) setImg(image); // state set from the async callback, not the effect body
+    };
+    image.src = src;
+    return () => {
+      cancelled = true;
+      image.onload = null;
+    };
+  }, [src]);
+  return img;
+}
+
+function pointInRect(p: Point, r: PdfRect): boolean {
+  return p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
+}
+
+/** Transformer wiring shared by every movable/resizable object (image + each
+ *  annotation kind): drag commits a new rect, transform commits rect + rotation. */
+function transformerCommon(
+  object: EditableObject,
+  selected: boolean,
+  setNode: (node: Konva.Node | null) => void,
+  onSelect: () => void,
+  onChange: (object: EditableObject, rect: PdfRect, rotation?: number) => void,
+  draggable: boolean,
+) {
+  return {
     ref: setNode,
     id: object.id,
     x: object.rect.x,
@@ -268,7 +310,7 @@ function AnnotationShape({
     rotation: object.rotation,
     opacity: object.opacity,
     visible: object.visible,
-    draggable: !object.locked,
+    draggable,
     onClick: onSelect,
     onTap: onSelect,
     onDragEnd: (evt: Konva.KonvaEventObject<DragEvent>) => {
@@ -294,6 +336,50 @@ function AnnotationShape({
     shadowColor: selected ? "#2563eb" : undefined,
     shadowBlur: selected ? 8 : 0,
   };
+}
+
+/** A movable/resizable image (inserted by the user, or a promoted embedded one). */
+function ImageShape({
+  object,
+  selected,
+  draggable,
+  setNode,
+  onSelect,
+  onChange,
+}: {
+  object: ImageObject;
+  selected: boolean;
+  draggable: boolean;
+  setNode: (node: Konva.Node | null) => void;
+  onSelect: () => void;
+  onChange: (object: EditableObject, rect: PdfRect, rotation?: number) => void;
+}) {
+  const image = useHtmlImage(object.src);
+  const common = transformerCommon(object, selected, setNode, onSelect, onChange, draggable && !object.locked);
+  return image ? <KonvaImage {...common} image={image} /> : <Rect {...common} fill="rgba(17,24,39,0.04)" cornerRadius={2} />;
+}
+
+function AnnotationShape({
+  object,
+  annotation,
+  selected,
+  setNode,
+  onSelect,
+  onChange,
+}: {
+  object: EditableObject;
+  annotation: PdfAnnotation;
+  selected: boolean;
+  setNode: (node: Konva.Node | null) => void;
+  onSelect: () => void;
+  onChange: (object: EditableObject, rect: PdfRect, rotation?: number) => void;
+}) {
+  // Hook must run unconditionally; only image-mode signatures supply a src.
+  const signatureImage = useHtmlImage(
+    annotation.type === "signature" && annotation.mode === "image" ? annotation.src : undefined,
+  );
+
+  const common = transformerCommon(object, selected, setNode, onSelect, onChange, !object.locked);
 
   switch (annotation.type) {
     case "highlight":
@@ -334,6 +420,14 @@ function AnnotationShape({
         </Group>
       );
     case "signature":
+      // Drawn / uploaded signatures are images; typed ones render as text.
+      if (annotation.mode === "image") {
+        return signatureImage ? (
+          <KonvaImage {...common} image={signatureImage} />
+        ) : (
+          <Rect {...common} fill="rgba(17,24,39,0.04)" cornerRadius={4} />
+        );
+      }
       return <Text {...common} text={annotation.text ?? "Signature"} fontFamily={annotation.fontFamily ?? "cursive"} fontSize={Math.max(18, object.rect.height * 0.55)} fill={annotation.stroke} />;
     case "stamp":
       return (
@@ -375,9 +469,12 @@ export function deleteSelectedAnnotations() {
     .map((id) => {
       const object = objects[id];
       if (!object) return null;
-      return object.kind === "signature" ? ops.removeSignature(pageId, id) : ops.deleteAnnotation(pageId, id);
+      if (object.kind === "signature") return ops.removeSignature(pageId, id);
+      if (object.kind === "image") return ops.deleteImage(pageId, id);
+      if (object.kind === "annotation") return ops.deleteAnnotation(pageId, id);
+      return null;
     })
     .filter((op): op is EditOperation => op !== null);
-  state.dispatchAll(operations, "Delete annotations");
+  state.dispatchAll(operations, "Delete selection");
   state.clearSelection();
 }

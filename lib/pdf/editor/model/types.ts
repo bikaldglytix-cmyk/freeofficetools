@@ -105,6 +105,9 @@ export interface TextBlock extends BaseObject {
   color: string;
   align: TextAlign;
   lineHeight: number;
+  /** Block-level weight/slant, used when there are no per-run overrides. */
+  bold?: boolean;
+  italic?: boolean;
   /**
    * `original` = extracted from the source PDF (editing it triggers the
    * whiteout/restamp workflow in Phase 4). `added` = a brand-new text box.

@@ -17,7 +17,9 @@ export type MediaEngine =
   | "mp3-converter"
   | "audio-converter"
   | "video-compressor"
-  | "audio-trimmer";
+  | "audio-trimmer"
+  | "mov-to-mp4"
+  | "ai-metadata-remover";
 
 export interface MediaOptions {
   /** Audio bitrate for lossy output, e.g. "192k". */
@@ -29,6 +31,8 @@ export interface MediaOptions {
   /** Trim window (whole seconds or HH:MM:SS) for the audio trimmer. */
   start?: string;
   end?: string;
+  /** Output MIME for image converters, e.g. "image/jpeg" or "image/png". */
+  outputFormat?: string;
 }
 
 interface Command {
@@ -104,6 +108,22 @@ function buildCommand(engine: MediaEngine, input: string, options: MediaOptions)
         suffix: "-compressed",
       };
     }
+    case "mov-to-mp4": {
+      return {
+        args: [
+          "-i", input,
+          "-c:v", "libx264",
+          "-preset", "ultrafast",
+          "-pix_fmt", "yuv420p",
+          "-c:a", "aac",
+          "-movflags", "+faststart",
+          "output.mp4",
+        ],
+        outFsName: "output.mp4",
+        outExt: "mp4",
+        mime: "video/mp4",
+      };
+    }
     case "audio-trimmer": {
       const start = (options.start ?? "0").trim() || "0";
       const end = (options.end ?? "").trim();
@@ -121,6 +141,10 @@ function buildCommand(engine: MediaEngine, input: string, options: MediaOptions)
         mime: "audio/mpeg",
         suffix: "-trimmed",
       };
+    }
+    case "ai-metadata-remover": {
+      // Handled directly without ffmpeg
+      return { args: [], outFsName: "", outExt: "", mime: "" };
     }
     default: {
       const exhaustive: never = engine;
@@ -145,6 +169,41 @@ export async function processMediaFile(
 ): Promise<ProcessResult> {
   const file = files[0];
   if (!file) throw new Error("Please add a file first.");
+
+  // Fast-path for image metadata stripping using native browser canvas (removes all EXIF/XMP)
+  if (engine === "ai-metadata-remover") {
+    return new Promise((resolve, reject) => {
+      ctx.onProgress?.(0.2);
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        ctx.onProgress?.(0.5);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const context = canvas.getContext("2d");
+        if (!context) return reject(new Error("Canvas not supported"));
+        context.drawImage(img, 0, 0);
+        
+        const isPng = file.type === "image/png";
+        const mime = isPng ? "image/png" : "image/jpeg";
+        const ext = isPng ? "png" : "jpg";
+        
+        canvas.toBlob((blob) => {
+          if (!blob) return reject(new Error("Failed to encode clean image."));
+          ctx.onProgress?.(1.0);
+          const name = `${sanitizeFilename(baseName(file.name))}-cleaned.${ext}`;
+          resolve({
+            outputs: [{ name, blob }],
+            meta: { inputSize: file.size, outputSize: blob.size }
+          });
+        }, mime, isPng ? undefined : 0.98);
+      };
+      img.onerror = () => reject(new Error("Could not load image."));
+      img.src = url;
+    });
+  }
 
   const ffmpeg = await getFFmpeg();
   const inputName = `input${fileExtension(file.name) || ".bin"}`;

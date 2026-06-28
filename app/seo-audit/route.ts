@@ -1,12 +1,14 @@
 /**
- * Live SEO audit report, computed from the real page registries so it can
- * never drift from what ships. Returns Markdown. Excluded from crawling via
- * robots.ts. Intended to be saved as SEO-AUDIT.md for review.
+ * Live, HONEST SEO audit report, computed from the real page registries so it
+ * can never drift from what ships. Returns Markdown. Excluded from crawling via
+ * robots.ts. It reports the actual URLs and flags real issues (title length,
+ * description length, tools without a guide) rather than asserting perfection.
  */
 import { siteConfig } from "@/lib/site";
+import { brandedTitle } from "@/lib/seo";
 import { tools } from "@/lib/tools";
 import { mediaTools } from "@/lib/media/tools";
-import { officeTools, officeCategories } from "@/lib/office/tools";
+import { officeTools } from "@/lib/office/tools";
 import { guides } from "@/lib/guides";
 
 export const dynamicParams = false;
@@ -15,155 +17,76 @@ interface Row {
   url: string;
   keyword: string;
   title: string;
-  description: string;
+  titleLen: number;
+  descLen: number;
   schema: string;
-  links: string;
 }
 
-const brand = (t: string) => `${t} | ${siteConfig.name}`;
 const esc = (s: string) => s.replace(/\|/g, "\\|");
+const TITLE_MAX = 60;
+const DESC_MIN = 70;
+const DESC_MAX = 160;
 
 function table(rows: Row[]): string {
   const head =
-    "| URL | Target keyword | Title tag | Meta description | Schema | Internal links |\n" +
+    "| URL | Target keyword | Title (rendered) | Title len | Desc len | Schema |\n" +
     "| --- | --- | --- | --- | --- | --- |";
   const body = rows
-    .map(
-      (r) =>
-        `| ${esc(r.url)} | ${esc(r.keyword)} | ${esc(r.title)} | ${esc(r.description)} | ${esc(r.schema)} | ${esc(r.links)} |`,
-    )
+    .map((r) => {
+      const t = r.titleLen > TITLE_MAX ? `**${r.titleLen}**` : `${r.titleLen}`;
+      const d = r.descLen > DESC_MAX || r.descLen < DESC_MIN ? `**${r.descLen}**` : `${r.descLen}`;
+      return `| ${esc(r.url)} | ${esc(r.keyword)} | ${esc(r.title)} | ${t} | ${d} | ${esc(r.schema)} |`;
+    })
     .join("\n");
   return `${head}\n${body}`;
 }
 
 export function GET(): Response {
-  const orgWeb = "Organization, WebSite (site-wide)";
+  const toolSchema = "Breadcrumb, WebApplication, HowTo, FAQ";
 
   const staticRows: Row[] = [
-    {
-      url: "/",
-      keyword: "free pdf & office tools",
-      title: brand("Free PDF & Document Tools").replace(` | ${siteConfig.name}`, ` — ${siteConfig.name}`),
-      description: siteConfig.description,
-      schema: `${orgWeb}, ItemList`,
-      links: "all category + tool pages",
-    },
-    {
-      url: "/pdf-tools",
-      keyword: "free pdf tools",
-      title: brand("All PDF Tools — Free & Private"),
-      description: "Every FreeOfficeTools PDF utility in one place: merge, split, compress, rotate, convert and watermark PDFs.",
-      schema: "BreadcrumbList",
-      links: "all PDF tools, guides",
-    },
-    {
-      url: "/office-tools",
-      keyword: "office tools",
-      title: brand("Free Office Tools — Convert Word, Excel & PowerPoint"),
-      description: "Free online office tools to convert Word, Excel and PowerPoint to PDF and back.",
-      schema: "BreadcrumbList, ItemList, FAQPage",
-      links: "office categories + tools, PDF tools, media tools",
-    },
-    {
-      url: "/word-tools",
-      keyword: "word tools",
-      title: brand(officeCategories[0].title.replace(` | ${siteConfig.name}`, "")),
-      description: officeCategories[0].metaDescription,
-      schema: "BreadcrumbList, ItemList, FAQPage",
-      links: "Word tools, other categories",
-    },
-    {
-      url: "/excel-tools",
-      keyword: "excel tools",
-      title: brand(officeCategories[1].title),
-      description: officeCategories[1].metaDescription,
-      schema: "BreadcrumbList, ItemList, FAQPage",
-      links: "Excel tools, other categories",
-    },
-    {
-      url: "/powerpoint-tools",
-      keyword: "powerpoint tools",
-      title: brand(officeCategories[2].title),
-      description: officeCategories[2].metaDescription,
-      schema: "BreadcrumbList, ItemList, FAQPage",
-      links: "PowerPoint tools, other categories",
-    },
-    {
-      url: "/media-tools",
-      keyword: "video and audio tools",
-      title: brand("Free Video & Audio Tools — Private, In Your Browser"),
-      description: "Free online video and audio tools that run in your browser: convert video to MP3, compress video, convert and trim audio.",
-      schema: "BreadcrumbList, ItemList, FAQPage",
-      links: "all media tools, PDF tools",
-    },
-    {
-      url: "/guides",
-      keyword: "pdf guides",
-      title: brand("Guides — How to Work with PDFs"),
-      description: "Simple, practical guides for common PDF tasks.",
-      schema: "BreadcrumbList",
-      links: "all guides",
-    },
-    {
-      url: "/about",
-      keyword: "about freeofficetools",
-      title: brand("About"),
-      description: "FreeOfficeTools offers fast, private, free PDF and document tools that run in your browser.",
-      schema: "BreadcrumbList",
-      links: "PDF tools",
-    },
-    {
-      url: "/privacy",
-      keyword: "freeofficetools privacy",
-      title: brand("Privacy Policy"),
-      description: "How FreeOfficeTools handles your data: files are processed in your browser and never uploaded.",
-      schema: "BreadcrumbList",
-      links: "—",
-    },
+    row("/", "free pdf, office & media tools", "FreeOfficeTools — Free PDF, Office & Media Tools Online", siteConfig.description, "Organization, WebSite, ItemList, FAQ"),
+    row("/pdf-tools", "free pdf tools", "All PDF Tools — Free & Private", "Every FreeOfficeTools PDF utility in one place: merge, split, compress, rotate, convert and watermark PDFs.", "Breadcrumb, ItemList, FAQ"),
+    row("/office-tools", "office tools", "Free Office Tools — Convert Word, Excel & PowerPoint", "Free online office tools to convert Word, Excel and PowerPoint to PDF and back.", "Breadcrumb, ItemList, FAQ"),
+    row("/media-tools", "video, audio & image tools", "Free Video, Audio & Image Tools — Private, In Your Browser", "Free online video, audio and image tools that run in your browser.", "Breadcrumb, ItemList, FAQ"),
+    row("/guides", "pdf & media guides", "Guides — Document & Media Tutorials", "Simple, practical guides for common PDF, document and media tasks.", "Breadcrumb"),
+    row("/security", "freeofficetools security", "Security & Privacy Methodology", "How FreeOfficeTools processes files privately in your browser.", "Breadcrumb"),
+    row("/about", "about freeofficetools", "About", "FreeOfficeTools offers fast, private, free PDF and document tools that run in your browser.", "Breadcrumb"),
+    row("/privacy", "freeofficetools privacy", "Privacy Policy", "How FreeOfficeTools handles your data: files are processed in your browser and never uploaded.", "Breadcrumb"),
   ];
 
-  const pdfRows: Row[] = tools.map((t) => ({
-    url: `/pdf-tools/${t.slug}`,
-    keyword: t.keywords[0],
-    title: brand(t.title),
-    description: t.metaDescription,
-    schema: "BreadcrumbList, WebApplication, HowTo, FAQPage",
-    links: t.related.join(", "),
-  }));
+  const pdfRows = tools.map((t) => row(`/pdf-tools/${t.slug}`, t.keywords[0], t.title, t.metaDescription, toolSchema));
+  const officeRows = officeTools.map((t) => row(`/office-tools/${t.slug}`, t.keywords[0], t.title, t.metaDescription, toolSchema));
+  const mediaRows = mediaTools.map((t) => row(`/media-tools/${t.slug}`, t.keywords[0], t.title, t.metaDescription, toolSchema));
+  const guideRows = guides.map((g) => row(`/guides/${g.slug}`, g.keywords[0], g.title, g.metaDescription, "Breadcrumb, Article, FAQ"));
 
-  const officeRows: Row[] = officeTools.map((t) => ({
-    url: `/${t.slug}`,
-    keyword: t.keywords[0],
-    title: brand(t.title),
-    description: t.metaDescription,
-    schema: "BreadcrumbList, WebApplication, HowTo, FAQPage",
-    links: t.related.join(", "),
-  }));
+  const all = [...staticRows, ...pdfRows, ...officeRows, ...mediaRows, ...guideRows];
+  const longTitles = all.filter((r) => r.titleLen > TITLE_MAX);
+  const badDesc = all.filter((r) => r.descLen > DESC_MAX || r.descLen < DESC_MIN);
 
-  const mediaRows: Row[] = mediaTools.map((t) => ({
-    url: `/${t.slug}`,
-    keyword: t.keywords[0],
-    title: brand(t.title),
-    description: t.metaDescription,
-    schema: "BreadcrumbList, WebApplication, HowTo, FAQPage",
-    links: t.related.join(", "),
-  }));
+  // Tools whose how-to guide is missing (an internal-linking / content opportunity).
+  const guideSlugs = new Set(guides.map((g) => g.toolSlug));
+  const toolsWithoutGuide = [
+    ...tools.map((t) => `/pdf-tools/${t.slug}`).filter((_, i) => !guideSlugs.has(tools[i].slug)),
+    ...officeTools.map((t) => `/office-tools/${t.slug}`).filter((_, i) => !guideSlugs.has(officeTools[i].slug)),
+    ...mediaTools.map((t) => `/media-tools/${t.slug}`).filter((_, i) => !guideSlugs.has(mediaTools[i].slug)),
+  ];
 
-  const guideRows: Row[] = guides.map((g) => ({
-    url: `/guides/${g.slug}`,
-    keyword: g.keywords[0],
-    title: brand(g.title),
-    description: g.metaDescription,
-    schema: "BreadcrumbList, Article, FAQPage",
-    links: `${g.toolSlug} (tool)`,
-  }));
+  const warnings: string[] = [];
+  if (longTitles.length) warnings.push(`- ${longTitles.length} rendered title(s) over ${TITLE_MAX} chars: ${longTitles.map((r) => r.url).join(", ")}`);
+  if (badDesc.length) warnings.push(`- ${badDesc.length} meta description(s) outside ${DESC_MIN}–${DESC_MAX} chars: ${badDesc.map((r) => r.url).join(", ")}`);
+  if (toolsWithoutGuide.length) warnings.push(`- ${toolsWithoutGuide.length} tool(s) without a how-to guide (opportunity): ${toolsWithoutGuide.join(", ")}`);
+  const warningsBlock = warnings.length ? warnings.join("\n") : "- None detected. ✅";
 
-  const total = staticRows.length + pdfRows.length + officeRows.length + mediaRows.length + guideRows.length;
+  const md = `# FreeOfficeTools — SEO Audit (auto-generated)
 
-  const md = `# FreeOfficeTools — SEO Audit Report
+Canonical base: ${siteConfig.url}
+Total indexable URLs: **${all.length}** — ${tools.length} PDF, ${officeTools.length} office, ${mediaTools.length} media tools, ${guides.length} guides, ${staticRows.length} static.
 
-Generated from the live page registries. Canonical base: ${siteConfig.url}
-Total indexable URLs: **${total}**. Every URL has a unique title, meta description, a self-referencing canonical (\`${siteConfig.url}<path>\`), Open Graph + Twitter metadata (with a dynamic /api/og image), an H1, and is included in sitemap.xml. Organization + WebSite schema is injected site-wide via the root layout.
+Each URL has a unique title, meta description, a self-referencing canonical, Open Graph + Twitter tags (dynamic /api/og image), one H1, and is in sitemap.xml. The brand is appended to the title only when it keeps the tag under ${TITLE_MAX} chars (see lib/seo.ts \`brandedTitle\`). **Title len** / **Desc len** below are the rendered character counts; bold = out of the recommended range.
+
+## ⚠️ Issues & opportunities (computed)
+${warningsBlock}
 
 ## Static & category pages
 ${table(staticRows)}
@@ -180,14 +103,18 @@ ${table(mediaRows)}
 ## Guide pages
 ${table(guideRows)}
 
-## Notes
-- **Canonical** for every row is \`${siteConfig.url}\` + the URL shown (self-referencing).
-- **Open Graph / Twitter**: every page emits OG + Twitter tags with a per-page /api/og image (built in lib/seo.ts buildMetadata).
-- **No orphan pages**: every tool is linked from its category page, the homepage directory, the footer, and related-tool blocks on sibling tools.
-- **Office conversions** run via the convertDocument() seam; the page UI, URL and SEO are identical whether processing is local or server-side.
+## Known limitations (not auto-detectable here)
+- Image tool depth varies; the JPG/PNG/HEIC converters were expanded but remain shorter than the PDF pages.
+- \`lastmod\` in sitemap.xml uses a single maintained date (lib/sitemap.ts \`SITE_UPDATED\`), not per-page change tracking.
+- Core Web Vitals are not measured here — verify with field data (CrUX) / Lighthouse.
 `;
 
   return new Response(md, {
     headers: { "Content-Type": "text/markdown; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+function row(url: string, keyword: string, rawTitle: string, description: string, schema: string): Row {
+  const title = brandedTitle(rawTitle);
+  return { url, keyword, title, titleLen: title.length, descLen: description.length, schema };
 }

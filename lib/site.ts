@@ -25,10 +25,11 @@ export const siteConfig = {
 } as const;
 
 export const mainNav = [
-  { title: "PDF tools", href: "/pdf-tools" },
-  { title: "Office tools", href: "/office-tools" },
-  { title: "Media tools", href: "/media-tools" },
+  { title: "PDF Tools", href: "/pdf-tools" },
+  { title: "Media Tools", href: "/media-tools" },
+  { title: "Office Tools", href: "/office-tools" },
   { title: "Guides", href: "/guides" },
+  { title: "Security", href: "/security" },
   { title: "About", href: "/about" },
 ] as const;
 
@@ -41,21 +42,29 @@ export const footerNav = {
     { title: "All PDF tools", href: "/pdf-tools" },
   ],
   media: [
-    { title: "Video to MP3", href: "/video-to-mp3" },
-    { title: "MP4 to MP3", href: "/mp4-to-mp3" },
-    { title: "Audio Converter", href: "/audio-converter" },
-    { title: "Video Compressor", href: "/video-compressor" },
+    { title: "Video to MP3", href: "/media-tools/video-to-mp3" },
+    { title: "MP4 to MP3", href: "/media-tools/mp4-to-mp3" },
+    { title: "MOV to MP4", href: "/media-tools/mov-to-mp4" },
+    { title: "PNG to JPG", href: "/media-tools/png-to-jpg" },
+    { title: "JPG to PNG", href: "/media-tools/jpg-to-png" },
+    { title: "Image Compressor", href: "/media-tools/image-compressor" },
+    { title: "HEIC to JPG", href: "/media-tools/heic-to-jpg" },
+    { title: "HEIC to PNG", href: "/media-tools/heic-to-png" },
+    { title: "Metadata Checker", href: "/media-tools/metadata-checker" },
+    { title: "Metadata Editor", href: "/media-tools/metadata-editor" },
+    { title: "AI Metadata Remover", href: "/media-tools/ai-metadata-remover" },
     { title: "All media tools", href: "/media-tools" },
   ],
   office: [
-    { title: "Word to PDF", href: "/word-to-pdf" },
-    { title: "PDF to Word", href: "/pdf-to-word" },
-    { title: "Excel to PDF", href: "/excel-to-pdf" },
-    { title: "PowerPoint to PDF", href: "/powerpoint-to-pdf" },
+    { title: "Word to PDF", href: "/office-tools/word-to-pdf" },
+    { title: "PDF to Word", href: "/office-tools/pdf-to-word" },
+    { title: "Excel to PDF", href: "/office-tools/excel-to-pdf" },
+    { title: "PowerPoint to PDF", href: "/office-tools/powerpoint-to-pdf" },
     { title: "All office tools", href: "/office-tools" },
   ],
   company: [
     { title: "About", href: "/about" },
+    { title: "Security", href: "/security" },
     { title: "Privacy", href: "/privacy" },
     { title: "Guides", href: "/guides" },
   ],

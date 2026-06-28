@@ -134,7 +134,10 @@ function PdfPageImpl({ doc, layout, zoom, matches, activeMatchId, handToolActive
         width={layout.width}
         height={layout.height}
         zoom={zoom}
-        tool={textTool}
+        // While the hand tool / space-pan is active, the text layer must be inert
+        // so pointer events reach the scroll container and panning works (the
+        // layer sits above the page at z-[4] and otherwise swallows the drag).
+        tool={handToolActive ? "off" : textTool}
         pageElement={pageEl}
       />
 

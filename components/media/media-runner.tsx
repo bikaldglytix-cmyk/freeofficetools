@@ -24,10 +24,37 @@ const TrimRunner = dynamic(
   () => import("@/components/media/trim-runner").then((m) => m.TrimRunner),
   { ssr: false, loading: RunnerSkeleton },
 );
+const InspectRunner = dynamic(
+  () => import("@/components/media/inspect-runner").then((m) => m.InspectRunner),
+  { ssr: false, loading: RunnerSkeleton },
+);
+const EditMetadataRunner = dynamic(
+  () => import("@/components/media/edit-metadata-runner").then((m) => m.EditMetadataRunner),
+  { ssr: false, loading: RunnerSkeleton },
+);
+const ImageConvertRunner = dynamic(
+  () => import("@/components/media/image-convert-runner").then((m) => m.ImageConvertRunner),
+  { ssr: false, loading: RunnerSkeleton },
+);
+const ImageCompressRunner = dynamic(
+  () => import("@/components/media/image-compress-runner").then((m) => m.ImageCompressRunner),
+  { ssr: false, loading: RunnerSkeleton },
+);
 
 export function MediaRunner({ slug }: { slug: string }) {
   const tool = getMediaTool(slug);
   if (!tool) return null;
-  const Runner = tool.runner === "trim" ? TrimRunner : ConvertRunner;
+  const Runner =
+    tool.runner === "trim"
+      ? TrimRunner
+      : tool.runner === "inspect"
+      ? InspectRunner
+      : tool.runner === "edit"
+      ? EditMetadataRunner
+      : tool.runner === "image-convert"
+      ? ImageConvertRunner
+      : tool.runner === "image-compress"
+      ? ImageCompressRunner
+      : ConvertRunner;
   return <Runner tool={tool} />;
 }
