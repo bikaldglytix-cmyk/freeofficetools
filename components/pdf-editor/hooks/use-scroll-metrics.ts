@@ -27,25 +27,32 @@ export function useScrollMetrics(scrollEl: HTMLElement | null): ScrollMetrics {
 
     const sync = () => {
       frame = 0;
-      setMetrics({
+      const next = {
         scrollTop: scrollEl.scrollTop,
         viewportWidth: scrollEl.clientWidth,
         viewportHeight: scrollEl.clientHeight,
-      });
+      };
+      setMetrics((current) =>
+        current.scrollTop === next.scrollTop &&
+        current.viewportWidth === next.viewportWidth &&
+        current.viewportHeight === next.viewportHeight
+          ? current
+          : next,
+      );
     };
-    const onScroll = () => {
+    const requestSync = () => {
       if (frame) return;
       frame = requestAnimationFrame(sync);
     };
 
     sync();
-    scrollEl.addEventListener("scroll", onScroll, { passive: true });
-    const resize = new ResizeObserver(sync);
+    scrollEl.addEventListener("scroll", requestSync, { passive: true });
+    const resize = new ResizeObserver(requestSync);
     resize.observe(scrollEl);
 
     return () => {
       if (frame) cancelAnimationFrame(frame);
-      scrollEl.removeEventListener("scroll", onScroll);
+      scrollEl.removeEventListener("scroll", requestSync);
       resize.disconnect();
     };
   }, [scrollEl]);

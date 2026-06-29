@@ -18,6 +18,25 @@ function devicePixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
+function canvasPixelBudget(): number {
+  if (typeof navigator === "undefined") return 12_000_000;
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const lowMemory = (nav.deviceMemory ?? 8) <= 4;
+  const lowCore = (nav.hardwareConcurrency ?? 8) <= 4;
+  return lowMemory || lowCore ? 5_000_000 : 12_000_000;
+}
+
+function effectiveDpr(cssWidth: number, cssHeight: number, requested: number): number {
+  if (typeof window === "undefined") return 1;
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const touchDevice = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  const lowPower = touchDevice || (nav.deviceMemory ?? 8) <= 4 || (nav.hardwareConcurrency ?? 8) <= 4;
+  const capped = Math.min(requested || 1, lowPower ? 1.25 : 2);
+  const pixelsAtCap = cssWidth * cssHeight * capped * capped;
+  if (pixelsAtCap <= canvasPixelBudget()) return capped;
+  return Math.max(1, Math.sqrt(canvasPixelBudget() / Math.max(1, cssWidth * cssHeight)));
+}
+
 function isCancel(err: unknown): boolean {
   return (
     !!err &&
@@ -33,15 +52,16 @@ export function renderPage(
   dpr = devicePixelRatio(),
 ): PageRenderHandle {
   // Backing store at full device resolution; CSS box at layout (zoom) size.
-  const deviceViewport = page.getViewport({ scale: zoom * dpr });
   const cssViewport = page.getViewport({ scale: zoom });
+  const renderDpr = effectiveDpr(cssViewport.width, cssViewport.height, dpr);
+  const deviceViewport = page.getViewport({ scale: zoom * renderDpr });
 
   canvas.width = Math.max(1, Math.floor(deviceViewport.width));
   canvas.height = Math.max(1, Math.floor(deviceViewport.height));
   canvas.style.width = `${Math.floor(cssViewport.width)}px`;
   canvas.style.height = `${Math.floor(cssViewport.height)}px`;
 
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { alpha: false, desynchronized: true });
   if (!context) throw new Error("Your browser couldn't create a drawing canvas.");
 
   // White base so transparent PDFs don't render on the page's dark chrome.

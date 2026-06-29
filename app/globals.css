@@ -179,6 +179,20 @@
   padding-inline: 1.25rem;
 }
 
+.pdf-editor-workspace {
+  height: 100vh;
+  height: 100dvh;
+  overscroll-behavior: contain;
+}
+
+.pdf-editor-workspace [class*="overflow-x-auto"] {
+  scrollbar-width: none;
+}
+
+.pdf-editor-workspace [class*="overflow-x-auto"]::-webkit-scrollbar {
+  display: none;
+}
+
 /*
   pdf.js v6 text layer (PDF Editor).
   These class names (.textLayer / .markedContent / .endOfContent) are emitted by

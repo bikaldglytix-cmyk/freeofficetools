@@ -73,7 +73,7 @@ export function ViewerToolbar(props: ViewerToolbarProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-border bg-card px-2 py-1.5">
+    <div className="flex min-h-12 items-center gap-1 overflow-x-auto border-b border-border bg-card px-2 py-1.5 [-webkit-overflow-scrolling:touch]">
       {/* Tool mode */}
       <ToolbarToggle active={!handToolActive} label="Select / text" onClick={() => handToolActive && onToggleHand()}>
         <MousePointer2 className="size-4" />
@@ -109,40 +109,42 @@ export function ViewerToolbar(props: ViewerToolbarProps) {
       <Divider />
 
       {/* Page navigation */}
-      <IconButton
-        label="Previous page"
-        onClick={() => onGoToPage(Math.max(0, currentPage - 1))}
-        disabled={currentPage <= 0}
-      >
-        <ChevronUp className="size-4" />
-      </IconButton>
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <input
-          value={pageInput}
-          onChange={(e) => setPageInput(e.target.value.replace(/[^\d]/g, ""))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitPage();
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-          onBlur={commitPage}
-          inputMode="numeric"
-          aria-label="Page number"
-          className="h-7 w-10 rounded-md border border-input bg-card px-1 text-center text-xs tabular-nums text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40"
-        />
-        <span className="tabular-nums">/ {numPages}</span>
+      <div className="flex shrink-0 items-center gap-1">
+        <IconButton
+          label="Previous page"
+          onClick={() => onGoToPage(Math.max(0, currentPage - 1))}
+          disabled={currentPage <= 0}
+        >
+          <ChevronUp className="size-4" />
+        </IconButton>
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <input
+            value={pageInput}
+            onChange={(e) => setPageInput(e.target.value.replace(/[^\d]/g, ""))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitPage();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            onBlur={commitPage}
+            inputMode="numeric"
+            aria-label="Page number"
+            className="h-9 w-12 rounded-md border border-input bg-card px-1 text-center text-xs tabular-nums text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/40 sm:h-8 sm:w-10"
+          />
+          <span className="whitespace-nowrap tabular-nums">/ {numPages}</span>
+        </div>
+        <IconButton
+          label="Next page"
+          onClick={() => onGoToPage(Math.min(numPages - 1, currentPage + 1))}
+          disabled={currentPage >= numPages - 1}
+        >
+          <ChevronDown className="size-4" />
+        </IconButton>
       </div>
-      <IconButton
-        label="Next page"
-        onClick={() => onGoToPage(Math.min(numPages - 1, currentPage + 1))}
-        disabled={currentPage >= numPages - 1}
-      >
-        <ChevronDown className="size-4" />
-      </IconButton>
 
-      <div className="ml-auto" />
+      <div className="min-w-2 flex-1" />
 
       {/* Search */}
       <ToolbarToggle active={searchOpen} label="Search (Ctrl/⌘+F)" onClick={onToggleSearch}>
@@ -176,7 +178,7 @@ function DownloadButton({
       title="Download the edited PDF"
       aria-label="Download the edited PDF"
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors disabled:cursor-default",
+        "flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors disabled:cursor-default sm:h-8",
         done
           ? "bg-success/15 text-success ring-1 ring-success/40"
           : "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -220,7 +222,7 @@ function IconButton({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      className="flex size-9 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-8"
     >
       {children}
     </button>
@@ -246,7 +248,7 @@ function ToolbarToggle({
       aria-label={label}
       aria-pressed={active}
       className={cn(
-        "flex size-8 items-center justify-center rounded-md transition-colors",
+        "flex size-9 shrink-0 touch-manipulation items-center justify-center rounded-md transition-colors sm:size-8",
         active ? "bg-primary-soft text-primary ring-1 ring-primary/40" : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
@@ -256,5 +258,5 @@ function ToolbarToggle({
 }
 
 function Divider() {
-  return <span className="mx-1 h-5 w-px bg-border" />;
+  return <span className="mx-1 h-5 w-px shrink-0 bg-border" />;
 }

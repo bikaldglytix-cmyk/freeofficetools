@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { Loader2, AlertTriangle, Type, X } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { useEditorDocument } from "@/components/pdf-editor/hooks/use-editor-document";
 import { useScrollMetrics } from "@/components/pdf-editor/hooks/use-scroll-metrics";
 import { usePan } from "@/components/pdf-editor/hooks/use-pan";
@@ -35,6 +35,7 @@ import { SearchPanel } from "./search-panel";
 const PAGE_GAP = 16;
 const PAGE_PADDING = 24;
 const OVERSCAN = 1;
+const COMPACT_BREAKPOINT = 760;
 
 const EMPTY_LAYOUT: ViewerLayout = { pages: [], totalHeight: 0, totalWidth: 0 };
 
@@ -67,7 +68,6 @@ export function PdfViewer({ file }: { file: File }) {
   const [mode, setMode] = useState<EditorMode>("text");
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>("select");
   const [textTool, setTextTool] = useState<TextTool>("select");
-  const [viewHintDismissed, setViewHintDismissed] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const imageAction = useRef<"insert" | "replace">("insert");
@@ -90,21 +90,28 @@ export function PdfViewer({ file }: { file: File }) {
   const search = usePdfSearch(doc);
   const { panCursorActive, panning } = usePan(scrollEl, handTool);
   const exporter = usePdfExport(file);
+  const compactViewer = metrics.viewportWidth > 0 && metrics.viewportWidth < COMPACT_BREAKPOINT;
+  const pagePadding = compactViewer ? 12 : PAGE_PADDING;
+  const pageGap = compactViewer ? 10 : PAGE_GAP;
 
   // ----- Layout + virtualization (derived) -------------------------------
   const layout = useMemo<ViewerLayout>(() => {
     if (!doc || metrics.viewportWidth === 0) return EMPTY_LAYOUT;
     return computeLayout(doc.pageSizes, {
       zoom,
-      gap: PAGE_GAP,
+      gap: pageGap,
       containerWidth: metrics.viewportWidth,
-      padding: PAGE_PADDING,
+      padding: pagePadding,
     });
-  }, [doc, zoom, metrics.viewportWidth]);
+  }, [doc, zoom, metrics.viewportWidth, pageGap, pagePadding]);
 
-  const range = useMemo(
-    () => visiblePageRange(layout, metrics.scrollTop, metrics.viewportHeight, OVERSCAN),
+  const visibleRange = useMemo(
+    () => visiblePageRange(layout, metrics.scrollTop, metrics.viewportHeight, 0),
     [layout, metrics.scrollTop, metrics.viewportHeight],
+  );
+  const range = useMemo(
+    () => visiblePageRange(layout, metrics.scrollTop, metrics.viewportHeight, compactViewer ? 0 : OVERSCAN),
+    [layout, metrics.scrollTop, metrics.viewportHeight, compactViewer],
   );
   const currentPage = useMemo(
     () => currentPageAt(layout, metrics.scrollTop, metrics.viewportHeight),
@@ -222,8 +229,8 @@ export function PdfViewer({ file }: { file: File }) {
   useEffect(() => {
     if (!doc || metrics.viewportWidth === 0 || initializedRef.current) return;
     initializedRef.current = true;
-    setZoom(fitZoom(doc.pageSizes[0], "width", metrics.viewportWidth, metrics.viewportHeight, PAGE_PADDING));
-  }, [doc, metrics.viewportWidth, metrics.viewportHeight]);
+    setZoom(fitZoom(doc.pageSizes[0], "width", metrics.viewportWidth, metrics.viewportHeight, pagePadding));
+  }, [doc, metrics.viewportWidth, metrics.viewportHeight, pagePadding]);
 
   // ----- Zoom with scroll anchoring --------------------------------------
   const anchorRef = useRef<{ page: number; fraction: number } | null>(null);
@@ -250,20 +257,20 @@ export function PdfViewer({ file }: { file: File }) {
     (index: number) => {
       const page = layout.pages[index];
       if (!scrollEl || !page) return;
-      scrollEl.scrollTo({ top: Math.max(0, page.top - PAGE_PADDING) });
+      scrollEl.scrollTo({ top: Math.max(0, page.top - pagePadding) });
     },
-    [layout, scrollEl],
+    [layout, pagePadding, scrollEl],
   );
 
   const fitWidth = useCallback(() => {
     if (!doc) return;
-    applyZoom(fitZoom(doc.pageSizes[currentPage], "width", metrics.viewportWidth, metrics.viewportHeight, PAGE_PADDING));
-  }, [doc, currentPage, metrics.viewportWidth, metrics.viewportHeight, applyZoom]);
+    applyZoom(fitZoom(doc.pageSizes[currentPage], "width", metrics.viewportWidth, metrics.viewportHeight, pagePadding));
+  }, [doc, currentPage, metrics.viewportWidth, metrics.viewportHeight, pagePadding, applyZoom]);
 
   const fitPage = useCallback(() => {
     if (!doc) return;
-    applyZoom(fitZoom(doc.pageSizes[currentPage], "page", metrics.viewportWidth, metrics.viewportHeight, PAGE_PADDING));
-  }, [doc, currentPage, metrics.viewportWidth, metrics.viewportHeight, applyZoom]);
+    applyZoom(fitZoom(doc.pageSizes[currentPage], "page", metrics.viewportWidth, metrics.viewportHeight, pagePadding));
+  }, [doc, currentPage, metrics.viewportWidth, metrics.viewportHeight, pagePadding, applyZoom]);
 
   // ----- Search: scroll the active match into view -----------------------
   const activeId = search.active?.id ?? null;
@@ -311,6 +318,7 @@ export function PdfViewer({ file }: { file: File }) {
   }
 
   const ready = status === "ready" && doc;
+  const showThumbnails = ready && !compactViewer && doc.numPages > 1;
 
   return (
     <div className="pdf-editor-viewer flex h-full min-h-0 flex-col">
@@ -366,35 +374,6 @@ export function PdfViewer({ file }: { file: File }) {
         />
       ) : null}
 
-      {ready && mode === "view" && !viewHintDismissed ? (
-        <div className="flex items-center gap-2 border-b border-primary/20 bg-primary-soft/50 px-3 py-2 text-xs text-foreground">
-          <Type className="size-4 shrink-0 text-primary" />
-          <span className="flex-1">
-            To change the words in your PDF, switch to <span className="font-semibold">Edit Text</span>, then
-            click any highlighted text on the page.
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              selectMode("text");
-              setViewHintDismissed(true);
-            }}
-            className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-          >
-            Edit Text
-          </button>
-          <button
-            type="button"
-            aria-label="Dismiss tip"
-            title="Dismiss"
-            onClick={() => setViewHintDismissed(true)}
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      ) : null}
-
       {exporter.phase === "error" && exporter.error ? (
         <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
           <AlertTriangle className="size-4 shrink-0" />
@@ -403,7 +382,7 @@ export function PdfViewer({ file }: { file: File }) {
       ) : null}
 
       <div className="relative flex min-h-0 flex-1">
-        {ready ? (
+        {showThumbnails ? (
           <ThumbnailSidebar doc={doc} currentPage={currentPage} onSelect={scrollToPage} />
         ) : null}
 
@@ -412,7 +391,7 @@ export function PdfViewer({ file }: { file: File }) {
           ref={setScrollNode}
           tabIndex={0}
           className={cn(
-            "relative min-h-0 flex-1 overflow-auto bg-muted/40 outline-none",
+            "relative min-h-0 flex-1 overflow-auto overscroll-contain bg-muted/40 outline-none",
             panning ? "cursor-grabbing" : panCursorActive ? "cursor-grab" : "cursor-auto",
             panCursorActive && "select-none",
           )}
@@ -438,6 +417,9 @@ export function PdfViewer({ file }: { file: File }) {
                     annotationTool={annotationTool}
                     annotationsEnabled={!panCursorActive && textTool === "off"}
                     textTool={textTool}
+                    interactive={
+                      visibleRange.start !== -1 && p.index >= visibleRange.start && p.index <= visibleRange.end
+                    }
                   />
                 ) : null,
               )}

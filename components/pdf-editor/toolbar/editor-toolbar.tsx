@@ -39,15 +39,6 @@ const MODES: Array<{ id: EditorMode; label: string; icon: ReactNode }> = [
   { id: "sign", label: "Sign", icon: <SignatureIcon className="size-4" /> },
 ];
 
-const MODE_HINTS: Record<EditorMode, string> = {
-  view: "Reading mode — choose “Edit Text” above to change the words in your PDF.",
-  text: "Click straight into any text and type — the cursor lands where you click. Click elsewhere or press Enter to save, Esc to cancel.",
-  image: "Insert a picture, or click an image already in the PDF to move, resize or delete it.",
-  annotate: "Highlight text, add a comment or drop a sticky note.",
-  draw: "Free-draw, or add shapes, lines and arrows.",
-  sign: "Place your signature or a stamp on the page.",
-};
-
 const ANNOTATION_TOOLS: Record<AnnotationTool, { label: string; icon: ReactNode }> = {
   select: { label: "Select", icon: <MousePointer2 className="size-4" /> },
   highlight: { label: "Highlight", icon: <Highlighter className="size-4" /> },
@@ -114,8 +105,8 @@ export function EditorToolbar({
   return (
     <div className="border-b border-border bg-card">
       {/* Mode switcher + global actions. */}
-      <div className="flex flex-wrap items-center gap-2 px-2 py-1.5">
-        <div className="flex items-center gap-0.5 rounded-lg bg-muted/60 p-0.5">
+      <div className="flex min-h-12 items-center gap-2 px-2 py-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto rounded-lg bg-muted/60 p-0.5 [-webkit-overflow-scrolling:touch]">
           {MODES.map((m) => {
             const active = mode === m.id;
             return (
@@ -126,20 +117,20 @@ export function EditorToolbar({
                 aria-pressed={active}
                 title={m.label}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                  "flex h-9 shrink-0 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition-colors sm:h-8",
                   active
                     ? "bg-card text-primary shadow-sm ring-1 ring-primary/30"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {m.icon}
-                <span>{m.label}</span>
+                <span className="hidden min-[390px]:inline">{m.label}</span>
               </button>
             );
           })}
         </div>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <ActionButton label="Delete selection" disabled={!hasSelection} onClick={onDelete}>
             <Trash2 className="size-4" />
           </ActionButton>
@@ -149,21 +140,21 @@ export function EditorToolbar({
           <ActionButton label="Redo" disabled={!canRedo} onClick={redo}>
             <Redo2 className="size-4" />
           </ActionButton>
-          <span className="px-1.5 text-xs font-medium text-muted-foreground">{dirty ? "Unsaved" : "Saved"}</span>
+          <span className="hidden px-1.5 text-xs font-medium text-muted-foreground sm:inline">{dirty ? "Unsaved" : "Saved"}</span>
         </div>
       </div>
 
       {/* Contextual controls for the active mode. */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 bg-muted/20 px-2 py-1.5">
+      <div className="flex min-h-11 items-center gap-2 overflow-x-auto border-t border-border/60 bg-muted/20 px-2 py-1.5 [-webkit-overflow-scrolling:touch]">
         {mode === "text" ? (
           <TextControls textTool={textTool} onTextToolChange={onTextToolChange} />
         ) : mode === "image" ? (
-          <div className="flex flex-wrap items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
               onClick={onInsertImage}
               title="Insert image"
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex h-9 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:h-8"
             >
               <ImagePlus className="size-4" />
               <span>Insert image</span>
@@ -173,14 +164,14 @@ export function EditorToolbar({
               onClick={onReplaceImage}
               disabled={!imageSelected}
               title={imageSelected ? "Replace selected image" : "Select an image first"}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex h-9 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:h-8"
             >
               <RefreshCw className="size-4" />
               <span>Replace</span>
             </button>
           </div>
         ) : mode === "annotate" || mode === "draw" || mode === "sign" ? (
-          <div className="flex flex-wrap items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0.5">
             {MODE_ANNOTATION_TOOLS[mode].map((id) => {
               const meta = ANNOTATION_TOOLS[id];
               const active = annotationTool === id;
@@ -192,7 +183,7 @@ export function EditorToolbar({
                   aria-pressed={active}
                   title={meta.label}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    "flex h-9 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors sm:h-8",
                     active
                       ? "bg-primary-soft text-primary ring-1 ring-primary/40"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -205,8 +196,6 @@ export function EditorToolbar({
             })}
           </div>
         ) : null}
-
-        <span className="ml-auto pl-2 text-[11px] text-muted-foreground">{MODE_HINTS[mode]}</span>
       </div>
     </div>
   );
@@ -230,7 +219,7 @@ function ActionButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      className="flex size-9 touch-manipulation items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-8"
     >
       {children}
     </button>

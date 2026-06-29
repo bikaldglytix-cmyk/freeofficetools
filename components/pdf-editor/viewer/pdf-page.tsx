@@ -21,6 +21,7 @@ interface PdfPageProps {
   annotationTool: AnnotationTool;
   annotationsEnabled: boolean;
   textTool: TextTool;
+  interactive: boolean;
 }
 
 /**
@@ -30,7 +31,18 @@ interface PdfPageProps {
  * text layer, and overlays any search highlights. In-flight renders are
  * canceled on cleanup so fast scroll/zoom never leaks work.
  */
-function PdfPageImpl({ doc, layout, zoom, matches, activeMatchId, handToolActive, annotationTool, annotationsEnabled, textTool }: PdfPageProps) {
+function PdfPageImpl({
+  doc,
+  layout,
+  zoom,
+  matches,
+  activeMatchId,
+  handToolActive,
+  annotationTool,
+  annotationsEnabled,
+  textTool,
+  interactive,
+}: PdfPageProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   const [pageEl, setPageEl] = useState<HTMLDivElement | null>(null);
@@ -76,7 +88,7 @@ function PdfPageImpl({ doc, layout, zoom, matches, activeMatchId, handToolActive
     <div
       ref={setPageNode}
       data-page-index={layout.index}
-      className="group/page absolute rounded-sm bg-white shadow-[0_1px_4px_rgba(0,0,0,0.18)] ring-1 ring-black/10"
+      className="group/page absolute rounded-sm bg-white shadow-[0_1px_4px_rgba(0,0,0,0.18)] ring-1 ring-black/10 [contain:layout_paint]"
       style={{
         top: layout.top,
         left: layout.left,
@@ -109,37 +121,41 @@ function PdfPageImpl({ doc, layout, zoom, matches, activeMatchId, handToolActive
         </div>
       ) : null}
 
-      {page ? (
+      {page && interactive && textTool === "off" ? (
         <div className="absolute inset-0 z-[2]">
           <PdfTextLayer page={page} zoom={zoom} selectable={!handToolActive} />
         </div>
       ) : null}
 
-      <div className={annotationsEnabled ? "" : "pointer-events-none"}>
-        <AnnotationLayer
-          pageId={pageId}
-          pageIndex={layout.index}
-          width={layout.width}
-          height={layout.height}
-          zoom={zoom}
-          tool={annotationTool}
-          pageElement={pageEl}
-        />
-      </div>
+      {interactive ? (
+        <>
+          <div className={annotationsEnabled ? "" : "pointer-events-none"}>
+            <AnnotationLayer
+              pageId={pageId}
+              pageIndex={layout.index}
+              width={layout.width}
+              height={layout.height}
+              zoom={zoom}
+              tool={annotationTool}
+              pageElement={pageEl}
+            />
+          </div>
 
-      <TextEditLayer
-        pageId={pageId}
-        pageIndex={layout.index}
-        page={page}
-        width={layout.width}
-        height={layout.height}
-        zoom={zoom}
-        // While the hand tool / space-pan is active, the text layer must be inert
-        // so pointer events reach the scroll container and panning works (the
-        // layer sits above the page at z-[4] and otherwise swallows the drag).
-        tool={handToolActive ? "off" : textTool}
-        pageElement={pageEl}
-      />
+          <TextEditLayer
+            pageId={pageId}
+            pageIndex={layout.index}
+            page={page}
+            width={layout.width}
+            height={layout.height}
+            zoom={zoom}
+            // While the hand tool / space-pan is active, the text layer must be inert
+            // so pointer events reach the scroll container and panning works (the
+            // layer sits above the page at z-[4] and otherwise swallows the drag).
+            tool={handToolActive ? "off" : textTool}
+            pageElement={pageEl}
+          />
+        </>
+      ) : null}
 
       {/* Page number badge */}
       <span className="pointer-events-none absolute -top-px left-1/2 z-[3] -translate-x-1/2 -translate-y-full rounded-t bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover/page:opacity-100">

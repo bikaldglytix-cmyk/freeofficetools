@@ -208,6 +208,7 @@ function AnnotationLayerImpl({ pageId, pageIndex, width, height, zoom, tool, pag
   if (!pageId || !docState) return null;
 
   const pointerClass = tool === "highlight" ? "pointer-events-none" : "pointer-events-auto";
+  if (tool === "select" && objects.length === 0) return null;
 
   return (
     <div className={`absolute inset-0 z-[3] ${pointerClass}`} data-annotation-layer={pageIndex}>

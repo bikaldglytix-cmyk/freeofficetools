@@ -22,7 +22,7 @@ export function ThumbnailSidebar({ doc, currentPage, onSelect }: ThumbnailSideba
   }, [currentPage]);
 
   return (
-    <div className="h-full w-[148px] shrink-0 overflow-y-auto border-r border-border bg-muted/30 p-2">
+    <div className="h-full w-[148px] shrink-0 overflow-y-auto overscroll-contain border-r border-border bg-muted/30 p-2">
       <ul className="space-y-2">
         {Array.from({ length: doc.numPages }, (_, i) => (
           <li key={i}>
@@ -91,7 +91,7 @@ function Thumb({
       onClick={onSelect}
       aria-label={`Go to page ${index + 1}`}
       aria-current={active}
-      className="group block w-full text-center"
+      className="group block w-full touch-manipulation text-center"
     >
       <div
         ref={holderRef}

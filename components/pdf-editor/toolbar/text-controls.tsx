@@ -18,7 +18,7 @@ interface TextControlsProps {
  */
 export function TextControls({ textTool, onTextToolChange }: TextControlsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-1.5">
       <div className="flex items-center gap-0.5 rounded-md bg-card p-0.5 ring-1 ring-border">
         <SegButton
           active={textTool === "select"}
@@ -55,12 +55,12 @@ function SegButton({
       aria-pressed={active}
       title={label}
       className={cn(
-        "flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors",
+        "flex h-8 touch-manipulation items-center gap-1.5 whitespace-nowrap rounded px-2 text-xs font-medium transition-colors",
         active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {icon}
-      <span>{label}</span>
+      <span className="hidden min-[390px]:inline">{label}</span>
     </button>
   );
 }

@@ -42,7 +42,7 @@ export function SearchPanel({
         : `${activeIndex + 1}/${matchCount}`;
 
   return (
-    <div className="absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-[var(--shadow-lift)]">
+    <div className="absolute inset-x-2 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-[var(--shadow-lift)] sm:inset-x-auto sm:right-3 sm:w-auto">
       <span className="pl-1.5 text-muted-foreground">
         {status === "indexing" ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
       </span>
@@ -62,7 +62,7 @@ export function SearchPanel({
         }}
         placeholder="Find in document"
         aria-label="Find in document"
-        className="h-7 w-44 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+        className="h-8 min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground sm:h-7 sm:w-44 sm:flex-none"
       />
       <span className="min-w-[3rem] text-center text-xs tabular-nums text-muted-foreground">{counter}</span>
       <button
@@ -71,7 +71,7 @@ export function SearchPanel({
         disabled={matchCount === 0}
         aria-label="Previous match"
         title="Previous match (Shift+Enter)"
-        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        className="flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-7"
       >
         <ChevronUp className="size-4" />
       </button>
@@ -81,7 +81,7 @@ export function SearchPanel({
         disabled={matchCount === 0}
         aria-label="Next match"
         title="Next match (Enter)"
-        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+        className="flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40 sm:size-7"
       >
         <ChevronDown className="size-4" />
       </button>
@@ -90,7 +90,7 @@ export function SearchPanel({
         onClick={onClose}
         aria-label="Close search"
         title="Close (Esc)"
-        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:size-7"
       >
         <X className="size-4" />
       </button>
