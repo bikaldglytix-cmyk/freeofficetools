@@ -65,7 +65,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         ]}
       />
       
-      <div className="container-page pt-6 pb-2">
+      <div className="mx-auto max-w-5xl px-4 pt-6 pb-2 sm:px-6">
         <Breadcrumbs items={crumbs} />
       </div>
 
@@ -104,12 +104,10 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
           ) : null}
 
           <div className="mx-auto max-w-3xl border-t border-border/40 pt-16">
-            <h2 className="mb-8 text-2xl font-medium tracking-tight">Frequently asked questions</h2>
             <Faq faqs={tool.faqs} />
           </div>
 
           <div className="border-t border-border/40 pt-16">
-            <h2 className="mb-8 text-xl font-medium tracking-tight">Related tools</h2>
             <RelatedTools tools={related} />
           </div>
         </div>

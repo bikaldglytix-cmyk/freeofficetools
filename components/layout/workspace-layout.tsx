@@ -10,11 +10,11 @@ interface WorkspaceLayoutProps {
 
 export function WorkspaceLayout({ title, subtitle, runner, children }: WorkspaceLayoutProps) {
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8 px-4 sm:px-6">
       {/* Dashboard Header */}
       <div className="border-b border-border/40 pb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">{subtitle}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[1fr_300px]">

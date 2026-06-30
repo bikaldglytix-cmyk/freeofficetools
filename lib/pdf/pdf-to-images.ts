@@ -35,15 +35,22 @@ export async function pdfToImages(
 
     if (!selected.length) throw new Error("No valid pages selected.");
 
+    // One reusable canvas across all pages: encoding to a Blob snapshots the
+    // pixels before the next page overwrites the canvas, so we avoid allocating
+    // (and GC-ing) a full-page backing store per output — meaningful on a large
+    // PDF rasterized at print scale on a low-memory device.
+    const canvas = document.createElement("canvas");
     for (let i = 0; i < selected.length; i++) {
       const pageNo = selected[i];
       const page = await doc.getPage(pageNo);
-      const canvas = await renderPageToCanvas(page, options.scale);
+      await renderPageToCanvas(page, options.scale, canvas);
       const blob = await canvasToBlob(canvas, "image/jpeg", options.quality);
       outputs.push({ name: `${base}-page-${pageNo}.jpg`, blob });
       page.cleanup();
       ctx?.onProgress?.((i + 1) / selected.length);
     }
+    canvas.width = 0;
+    canvas.height = 0;
   } finally {
     await loadingTask.destroy();
   }

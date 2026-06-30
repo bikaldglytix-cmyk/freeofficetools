@@ -27,7 +27,14 @@ export function usePageThumbnails(file: File | null) {
     /* eslint-enable react-hooks/set-state-in-effect */
     renderThumbnails(file)
       .then((t) => {
-        if (!cancelled) setThumbs(t);
+        // If this run was superseded, the thumbs are orphaned object URLs —
+        // revoke them here since they'll never reach state (and thus the
+        // revoke-on-replace effect below would never see them).
+        if (cancelled) {
+          for (const x of t) URL.revokeObjectURL(x.url);
+          return;
+        }
+        setThumbs(t);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Couldn't read this PDF.");
@@ -39,6 +46,14 @@ export function usePageThumbnails(file: File | null) {
       cancelled = true;
     };
   }, [file]);
+
+  // Object URLs pin their blobs in memory until revoked. Release the previous
+  // batch whenever `thumbs` is replaced (new file / reset) and on unmount.
+  useEffect(() => {
+    return () => {
+      for (const t of thumbs) URL.revokeObjectURL(t.url);
+    };
+  }, [thumbs]);
 
   return { thumbs, loading, error };
 }

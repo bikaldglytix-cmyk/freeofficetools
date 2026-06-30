@@ -26,13 +26,26 @@ export function getPdfjs(): Promise<Pdfjs> {
   return pdfjsPromise;
 }
 
-/** Render a single PDF page to a canvas at the given scale and return it. */
-export async function renderPageToCanvas(page: PDFPageProxy, scale: number): Promise<HTMLCanvasElement> {
+/**
+ * Render a single PDF page to a canvas at the given scale and return it.
+ *
+ * Pass a `target` canvas to reuse one backing store across many pages (e.g.
+ * batch thumbnail rendering): this avoids allocating/discarding a fresh canvas
+ * per page, which on low-end devices is real GC pressure and transient memory.
+ * The context is opaque (`alpha: false`) — every caller fills white and encodes
+ * JPEG, so output is byte-for-byte unchanged while compositing is cheaper and
+ * the backing store carries no alpha channel.
+ */
+export async function renderPageToCanvas(
+  page: PDFPageProxy,
+  scale: number,
+  target?: HTMLCanvasElement,
+): Promise<HTMLCanvasElement> {
   const viewport = page.getViewport({ scale });
-  const canvas = document.createElement("canvas");
+  const canvas = target ?? document.createElement("canvas");
   canvas.width = Math.max(1, Math.floor(viewport.width));
   canvas.height = Math.max(1, Math.floor(viewport.height));
-  const context = canvas.getContext("2d");
+  const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Your browser couldn't create a drawing canvas.");
   // White background so transparent PDFs don't flatten to black in JPEG.
   context.fillStyle = "#ffffff";

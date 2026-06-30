@@ -1,4 +1,4 @@
-import { zipSync } from "fflate";
+import { zip } from "fflate";
 import type { OutputFile, ProcessResult } from "@/lib/process/types";
 
 export const MAX_FILE_SIZE_MB = 200;
@@ -113,7 +113,12 @@ export async function zipOutputs(outputs: OutputFile[], zipName: string): Promis
     const buf = new Uint8Array(await out.blob.arrayBuffer());
     entries[sanitizeFilename(out.name)] = buf;
   }
-  const zipped = zipSync(entries, { level: 0 });
+  // Async zip runs the packaging on fflate's own worker thread, so bundling
+  // many or large outputs (e.g. every page of a big PDF→JPG export) never
+  // freezes the main thread. `level: 0` = stored, identical bytes to before.
+  const zipped = await new Promise<Uint8Array>((resolve, reject) => {
+    zip(entries, { level: 0 }, (err, data) => (err ? reject(err) : resolve(data)));
+  });
   return {
     name: sanitizeFilename(zipName),
     blob: new Blob([zipped as BlobPart], { type: "application/zip" }),

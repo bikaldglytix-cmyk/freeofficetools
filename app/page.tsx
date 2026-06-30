@@ -51,19 +51,19 @@ function ToolSection({
 }) {
   return (
     <section aria-labelledby={id}>
-      <div className="mb-4 flex items-end justify-between gap-4">
-        <div>
-          <h2 id={id} className="text-xl font-semibold tracking-tight text-foreground">
+      <div className="mb-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id={id} className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
             {title}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
+          <Link
+            href={viewAllHref}
+            className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            View all <ArrowRight className="size-4" />
+          </Link>
         </div>
-        <Link
-          href={viewAllHref}
-          className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
-        >
-          View all <ArrowRight className="size-4" />
-        </Link>
+        <p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
       </div>
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((item) => (
@@ -145,11 +145,11 @@ export default function HomePage() {
       <JsonLd data={[itemList, faqJsonLd(homeFaqs)]} />
 
       {/* Hero */}
-      <section className="px-4 text-center">
-        <h1 className="text-balance text-5xl font-extrabold tracking-tight text-foreground sm:text-6xl md:text-7xl">
+      <section className="text-center">
+        <h1 className="text-balance text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl md:text-7xl">
           Free PDF, Office &amp; Media Tools
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground sm:text-xl">
+        <p className="mx-auto mt-5 max-w-2xl text-balance text-base text-muted-foreground sm:mt-6 sm:text-xl">
           The one-stop solution for all your office work — edit PDFs, convert documents, and process
           media files directly in your browser. <span className="font-semibold text-foreground">Zero server uploads. Zero sign-ups. 100% free forever.</span>
         </p>
