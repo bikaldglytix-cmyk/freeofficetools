@@ -61,7 +61,11 @@ export function renderPage(
   canvas.style.width = `${Math.floor(cssViewport.width)}px`;
   canvas.style.height = `${Math.floor(cssViewport.height)}px`;
 
-  const context = canvas.getContext("2d", { alpha: false, desynchronized: true });
+  // NOTE: no `desynchronized` hint — it breaks getImageData readback on
+  // Chrome (returns the initial white fill), and the editor samples this
+  // canvas to colour-match its text-edit masks. For a static page raster the
+  // latency win is imperceptible anyway.
+  const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Your browser couldn't create a drawing canvas.");
 
   // White base so transparent PDFs don't render on the page's dark chrome.

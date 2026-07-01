@@ -77,7 +77,8 @@ export async function extractPageText(params: {
   // (the per-item `fontName` itself is an opaque id like "g_d0_f3"). Reading the
   // id directly always collapsed to Arial, so edited text lost its serif/mono
   // typeface — resolve the real family here instead.
-  const styles = (content as { styles?: Record<string, { fontFamily?: string }> }).styles ?? {};
+  const styles =
+    (content as { styles?: Record<string, { fontFamily?: string; descent?: number }> }).styles ?? {};
   // The generic CSS family ("serif") carries no weight/style. The embedded
   // font's real name and authoritative bold/italic flags live on the Font
   // object in `page.commonObjs`, populated once the operator list is parsed
@@ -108,6 +109,11 @@ export async function extractPageText(params: {
       width,
       height,
     };
+    // bounds bottom is the BASELINE — descenders paint below it. pdf.js reports
+    // the font's real descent (negative em fraction) per style; fall back to a
+    // conservative 0.24em when the font doesn't say.
+    const descentEm = (raw.fontName && styles[raw.fontName]?.descent) || 0;
+    const descent = (descentEm < 0 ? Math.min(0.5, -descentEm) : 0.24) * fontSize;
     runs.push({
       id: `pdf_item_${params.pageIndex}_${index}`,
       text: raw.str,
@@ -117,6 +123,7 @@ export async function extractPageText(params: {
       sourceItemIndex: index,
       charStart: 0,
       charEnd: raw.str.length,
+      descent,
     });
   });
 

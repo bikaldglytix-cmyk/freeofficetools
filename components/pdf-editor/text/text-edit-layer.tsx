@@ -7,7 +7,8 @@ import { ops, type EditOperation } from "@/lib/pdf/editor/operations/types";
 import { reflowBelowOps } from "@/lib/pdf/editor/model/reflow";
 import { documentStore } from "@/lib/pdf/editor/store/document-store";
 import { useDispatch, useDispatchAll, useDocument, usePageObjects, useSelection, useSelectionActions } from "@/lib/pdf/editor/store/hooks";
-import { clampRect, clientPointToPdfPoint, type Point } from "@/lib/pdf/text/geometry";
+import { rectKey } from "@/lib/pdf/editor/live/redact-page";
+import { clampRect, clientPointToPdfPoint, expandRect, pdfToViewportRect, type Point } from "@/lib/pdf/text/geometry";
 import { caretIndexAtX, measureTextBoxHeight } from "@/lib/pdf/text/measure";
 import {
   createAddedTextOperation,
@@ -17,6 +18,8 @@ import {
 } from "@/lib/pdf/text/operations";
 import { runsFromSpans, type RichResult } from "@/lib/pdf/text/rich-runs";
 import type { TextBlock as NativeTextBlock, TextStyle } from "@/lib/pdf/text/types";
+import { lineMaskRect, storedWhiteoutBounds } from "@/lib/pdf/text/whiteout";
+import { sampleBackgroundColor } from "@/lib/pdf/viewer/sample-background";
 import { TextStyleControls } from "@/components/pdf-editor/toolbar/text-style-controls";
 import { useTextExtraction } from "./use-text-extraction";
 import { TextBlockEditor } from "./text-block-editor";
@@ -40,16 +43,18 @@ interface TextEditLayerProps {
   zoom: number;
   tool: TextTool;
   pageElement: HTMLElement | null;
+  /** Mask rects (by {@link rectKey}) whose original glyphs have been truly
+   *  removed from the canvas raster — their masks are dropped entirely. */
+  cleanRectKeys: ReadonlySet<string>;
+  /** Publishes the ink rect of the line being edited inline, so the page can
+   *  remove its glyphs from the canvas while the user is still typing. */
+  onLiveEditRect: (rect: Rect | null) => void;
+  /** Bumped by the page after each canvas paint; triggers mask-colour sampling. */
+  paintVersion: number;
 }
 
 function isTextObject(o: EditableObject): o is EditorTextBlock {
   return o.kind === "text";
-}
-
-/** The original-text rectangles an edited block must paint white in the editor. */
-function whiteoutBounds(object: EditorTextBlock): Rect[] {
-  const exp = object.metadata?.export as { whiteout?: { bounds?: Rect[] } } | undefined;
-  return exp?.whiteout?.bounds ?? [];
 }
 
 /**
@@ -99,7 +104,19 @@ function normalizeRect(a: Point, b: Point): Rect {
  *      canvas text beneath is hidden, matching what the export engine will do.
  *   3. **In-flight UI** — the add-text marquee and the native inline editor.
  */
-export function TextEditLayer({ pageId, pageIndex, page, width, height, zoom, tool, pageElement }: TextEditLayerProps) {
+export function TextEditLayer({
+  pageId,
+  pageIndex,
+  page,
+  width,
+  height,
+  zoom,
+  tool,
+  pageElement,
+  cleanRectKeys,
+  onLiveEditRect,
+  paintVersion,
+}: TextEditLayerProps) {
   const docState = useDocument();
   const objects = usePageObjects(pageId ?? "");
   const dispatch = useDispatch();
@@ -142,6 +159,61 @@ export function TextEditLayer({ pageId, pageIndex, page, width, height, zoom, to
   const [nativeEdit, setNativeEdit] = useState<NativeTextBlock | null>(null);
   // Caret offset from the click that opened the native editor (caret-at-click).
   const [nativeCaret, setNativeCaret] = useState<number | null>(null);
+
+  // ----- Original-glyph masks ---------------------------------------------
+  // Masks are the FALLBACK, not the mechanism: the page removes edited glyphs
+  // from the canvas raster itself (true removal). A mask renders only until
+  // that lands — or permanently for the rare region removal can't reach — and
+  // uses the line's full ink extent in the locally-sampled background colour,
+  // so nothing peeks out even while it's the thing you see.
+  const maskRects = useMemo(() => {
+    const rects: Array<{ id: string; key: string; rect: Rect }> = [];
+    for (const o of textObjects) {
+      storedWhiteoutBounds(o.metadata).forEach((b, i) => {
+        const key = rectKey(b);
+        if (!cleanRectKeys.has(key)) rects.push({ id: `${o.id}_wo_${i}`, key, rect: b });
+      });
+    }
+    return rects;
+  }, [textObjects, cleanRectKeys]);
+
+  // The line currently being edited inline (pre-commit): mask it the same way,
+  // with the exact rect the commit will store, and tell the page so it can
+  // remove those glyphs from the raster while the user is still typing.
+  const liveEditMask = useMemo(() => {
+    if (!nativeEdit) return null;
+    const line = nativeEdit.lines[0];
+    const rect = line ? lineMaskRect(line) : expandRect(nativeEdit.bounds, 1.2);
+    return { key: rectKey(rect), rect };
+  }, [nativeEdit]);
+
+  useEffect(() => {
+    onLiveEditRect(liveEditMask?.rect ?? null);
+    return () => onLiveEditRect(null);
+  }, [liveEditMask, onLiveEditRect]);
+
+  // Sample the page canvas for each visible mask's local background colour
+  // (re-sampled after every canvas paint — the raster under a mask changes
+  // when the true-removal render lands).
+  const [maskColors, setMaskColors] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const canvas = pageElement?.querySelector("canvas");
+    const targets = liveEditMask ? [...maskRects, { id: "live", ...liveEditMask }] : maskRects;
+    if (!canvas || targets.length === 0) return;
+    const sampled: Record<string, string> = {};
+    for (const t of targets) {
+      const color = sampleBackgroundColor(canvas, pdfToViewportRect(t.rect, zoom));
+      if (color) sampled[t.key] = color;
+    }
+    // Reading the canvas (an external system) has to happen in an effect; only
+    // commit when a colour actually changed so this can't loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMaskColors((prev) => {
+      let changed = false;
+      for (const key of Object.keys(sampled)) if (prev[key] !== sampled[key]) changed = true;
+      return changed ? { ...prev, ...sampled } : prev;
+    });
+  }, [maskRects, liveEditMask, pageElement, zoom, paintVersion]);
   // Live ghost rect while dragging a native line to a new position.
   const [lineDrag, setLineDrag] = useState<{ rect: Rect } | null>(null);
   const [draft, setDraft] = useState<{ start: Point; end: Point } | null>(null);
@@ -356,23 +428,23 @@ export function TextEditLayer({ pageId, pageIndex, page, width, height, zoom, to
       style={{ width, height }}
       onPointerDown={onRootPointerDown}
     >
-      {/* Whiteout previews behind edited native text. */}
-      {textObjects.flatMap((o) =>
-        whiteoutBounds(o).map((b, i) => (
-          <div
-            key={`${o.id}_wo_${i}`}
-            style={{
-              position: "absolute",
-              left: b.x * zoom,
-              top: b.y * zoom,
-              width: b.width * zoom,
-              height: b.height * zoom,
-              background: "#ffffff",
-              pointerEvents: "none",
-            }}
-          />
-        )),
-      )}
+      {/* Masks over edited original glyphs — only for rects the canvas hasn't
+          truly removed yet (see maskRects); ink-extent geometry + sampled
+          background colour so nothing peeks out while they're visible. */}
+      {maskRects.map(({ id, key, rect }) => (
+        <div
+          key={id}
+          style={{
+            position: "absolute",
+            left: rect.x * zoom,
+            top: rect.y * zoom,
+            width: rect.width * zoom,
+            height: rect.height * zoom,
+            background: maskColors[key] ?? "#ffffff",
+            pointerEvents: "none",
+          }}
+        />
+      ))}
 
       {/* Native text (select mode): each line is an invisible I-beam click zone
           over its glyphs — no boxes. Clicking drops the caret exactly where you
@@ -480,6 +552,24 @@ export function TextEditLayer({ pageId, pageIndex, page, width, height, zoom, to
         >
           <TextStyleControls object={selectedTextObject} />
         </div>
+      ) : null}
+
+      {/* Mask under the inline editor: covers the original glyphs' full ink
+          extent until the canvas render without them lands (then the key turns
+          "clean" and the real page background shows through the transparent
+          editor — the old text is genuinely gone from the raster). */}
+      {nativeEdit && liveEditMask && !cleanRectKeys.has(liveEditMask.key) ? (
+        <div
+          style={{
+            position: "absolute",
+            left: liveEditMask.rect.x * zoom,
+            top: liveEditMask.rect.y * zoom,
+            width: liveEditMask.rect.width * zoom,
+            height: liveEditMask.rect.height * zoom,
+            background: maskColors[liveEditMask.key] ?? "#ffffff",
+            pointerEvents: "none",
+          }}
+        />
       ) : null}
 
       {/* Inline rich editor for a native block (before it becomes a store

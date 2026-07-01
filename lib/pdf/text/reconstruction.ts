@@ -62,6 +62,13 @@ export function groupRunsIntoLines(runs: readonly GlyphRun[], options: Required<
         id: newId("txt_line"),
         text: spans.map((s) => s.text).join(""),
         bounds,
+        // Ink extent: each run's box plus its descender strip, so masks and
+        // glyph removal cover g/y/p tails that paint below the baseline.
+        inkBounds: unionRects(
+          line.map((r) =>
+            r.descent ? { ...r.bounds, height: r.bounds.height + r.descent } : r.bounds,
+          ),
+        ),
         spans,
         baseline: Math.max(...line.map((r) => r.bounds.y + r.bounds.height)),
         direction: "ltr" as const,

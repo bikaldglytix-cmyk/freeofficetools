@@ -61,6 +61,14 @@ describe("computeRemovals", () => {
     const src = "BT 1 0 0 1 100 700 Tm (Hello) Tj ET";
     expect(computeRemovals(src, [around(400, 100)])).toHaveLength(0);
   });
+
+  it("reports per-region matches so unreachable regions keep their masks", () => {
+    const src = "BT 1 0 0 1 100 700 Tm (Hello) Tj ET";
+    const matched = [false, false];
+    const edits = computeRemovals(src, [around(100, 700), around(400, 100)], matched);
+    expect(edits).toHaveLength(1);
+    expect(matched).toEqual([true, false]);
+  });
 });
 
 describe("regionFromVisualRect", () => {

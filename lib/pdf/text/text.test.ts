@@ -280,6 +280,26 @@ describe("text/whiteout", () => {
     const instruction = createNewTextInstruction(nativeBlock());
     expect(instruction.kind).toBe("new-text");
   });
+
+  it("masks the full ink extent: descenders below the baseline are covered", () => {
+    // Runs report a 3.5pt descent → the line's inkBounds must reach below the
+    // layout bounds, and the whiteout mask must cover that strip (plus halo).
+    const [block] = reconstructTextBlocks({
+      documentId: "doc1",
+      pageId: "page1",
+      runs: [{ ...run("gyp", 0, 100), descent: 3.5 }],
+    });
+    const line = block.lines[0];
+    expect(line.inkBounds).toBeDefined();
+    expect(line.inkBounds!.y + line.inkBounds!.height).toBeCloseTo(
+      line.bounds.y + line.bounds.height + 3.5,
+    );
+
+    const instruction = createWhiteoutRestampInstruction(block, { objectId: "obj1", text: "New" });
+    const mask = instruction.whiteout!.bounds[0];
+    const lineBottom = line.bounds.y + line.bounds.height;
+    expect(mask.y + mask.height).toBeGreaterThanOrEqual(lineBottom + 3.5);
+  });
 });
 
 describe("text/ocr", () => {

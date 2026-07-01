@@ -1,18 +1,23 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFPageProxy } from "pdfjs-dist";
 import { AnnotationLayer } from "@/components/pdf-editor/annotations/annotation-layer";
 import { TextEditLayer, type TextTool } from "@/components/pdf-editor/text";
-import { useDocument } from "@/lib/pdf/editor/store/hooks";
+import { useDocument, usePageObjects } from "@/lib/pdf/editor/store/hooks";
 import { pageIdForSourceIndex } from "@/lib/pdf/editor/integration/from-viewer";
 import type { AnnotationTool } from "@/lib/pdf/annotations";
+import type { Rect } from "@/lib/pdf/editor/model/types";
+import { buildRedactedPage, regionSetKey, type RedactedPage } from "@/lib/pdf/editor/live/redact-page";
+import { storedWhiteoutBounds } from "@/lib/pdf/text/whiteout";
 import { renderPage, type PageRenderHandle } from "@/lib/pdf/viewer/render";
 import type { PageLayout, SearchMatch, ViewerDocument } from "@/lib/pdf/viewer/types";
 import { PdfTextLayer } from "./pdf-text-layer";
 
 interface PdfPageProps {
   doc: ViewerDocument;
+  /** The opened file — source bytes for live glyph removal on edited pages. */
+  sourceFile: File | null;
   layout: PageLayout;
   zoom: number;
   matches: SearchMatch[];
@@ -24,15 +29,25 @@ interface PdfPageProps {
   interactive: boolean;
 }
 
+const EMPTY_KEYS: ReadonlySet<string> = new Set();
+
 /**
  * A single rendered page, absolutely positioned within the scroll content.
  * Only mounted while in/near the viewport (parent handles virtualization). On
  * mount or zoom change it fetches its page proxy, paints the canvas, mounts the
  * text layer, and overlays any search highlights. In-flight renders are
  * canceled on cleanup so fast scroll/zoom never leaks work.
+ *
+ * TRUE-REMOVAL RENDERING: when this page has edited original text, the canvas
+ * is repainted from a copy of the page whose edited glyphs were deleted from
+ * the content stream (see lib/pdf/editor/live/redact-page). The old words are
+ * then genuinely absent from the raster — no white patches, no descender
+ * debris, any background preserved. Masks in the text layer only bridge the
+ * moment until that render lands (and the rare regions removal can't reach).
  */
 function PdfPageImpl({
   doc,
+  sourceFile,
   layout,
   zoom,
   matches,
@@ -48,6 +63,8 @@ function PdfPageImpl({
   const [pageEl, setPageEl] = useState<HTMLDivElement | null>(null);
   const [page, setPage] = useState<PDFPageProxy | null>(null);
   const [rendered, setRendered] = useState(false);
+  // Bumped after every successful canvas paint so overlays can (re)sample it.
+  const [paintVersion, setPaintVersion] = useState(0);
   const editorDocument = useDocument();
   const pageId = editorDocument ? pageIdForSourceIndex(editorDocument, layout.index) ?? null : null;
   const setPageNode = useCallback((node: HTMLDivElement | null) => {
@@ -55,34 +72,117 @@ function PdfPageImpl({
     setPageEl(node);
   }, []);
 
+  // ----- Live glyph removal ------------------------------------------------
+  // Regions needing removal: the stored original-glyph bounds of every edited
+  // native text object, plus the line currently being edited inline (published
+  // by the text layer before any operation is committed).
+  const objects = usePageObjects(pageId ?? "");
+  const [liveEditRect, setLiveEditRect] = useState<Rect | null>(null);
+  const removalRects = useMemo(() => {
+    const rects: Rect[] = [];
+    for (const o of objects) {
+      if (o.kind === "text" && o.source === "original") rects.push(...storedWhiteoutBounds(o.metadata));
+    }
+    if (liveEditRect) rects.push(liveEditRect);
+    return rects;
+  }, [objects, liveEditRect]);
+  const removalKey = useMemo(() => regionSetKey(removalRects), [removalRects]);
+
+  const [redacted, setRedacted] = useState<{ key: string; page: RedactedPage } | null>(null);
+
+  useEffect(() => {
+    if (!sourceFile || removalRects.length === 0) {
+      // Drop the redacted raster when the last edit is undone; synchronizes
+      // with an external resource (the pdf.js document being destroyed).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRedacted((prev) => {
+        prev?.page.destroy();
+        return null;
+      });
+      return;
+    }
+    if (redacted?.key === removalKey) return;
+    let cancelled = false;
+    // Small debounce coalesces bursts (commit + reflow land as several store
+    // updates) without making the first clean render feel laggy.
+    const timer = setTimeout(async () => {
+      const built = await buildRedactedPage({
+        file: sourceFile,
+        pageIndex: layout.index,
+        rects: removalRects,
+        pageHeightPt: doc.pageSizes[layout.index]?.height ?? layout.height / zoom,
+        rotation: doc.pageSizes[layout.index]?.rotation ?? 0,
+      });
+      if (cancelled) {
+        built?.destroy();
+        return;
+      }
+      if (built) {
+        setRedacted((prev) => {
+          prev?.page.destroy();
+          return { key: removalKey, page: built };
+        });
+      }
+    }, 80);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // `redacted` is deliberately read but not depended on: a landed build sets
+    // it to the same key this effect just built, and re-running would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceFile, removalKey, removalRects, layout.index, doc]);
+
+  // Release the last redacted document when the page unmounts (virtualization).
+  const redactedRef = useRef(redacted);
+  useEffect(() => {
+    redactedRef.current = redacted;
+  }, [redacted]);
+  useEffect(() => () => redactedRef.current?.page.destroy(), []);
+
+  // ----- Canvas painting ---------------------------------------------------
+  // The original proxy is always fetched (the text layer and extraction need
+  // it); the canvas paints the redacted copy instead whenever one is live.
   useEffect(() => {
     let cancelled = false;
-    let handle: PageRenderHandle | null = null;
-    // Reset the "rendered" flag when (re)rendering this page; this synchronizes
-    // with pdf.js (an external system), so the scoped exception is deliberate.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRendered(false);
-
     doc
       .getPage(layout.index)
       .then((p) => {
-        if (cancelled || !canvasRef.current) return;
-        setPage(p);
-        handle = renderPage(p, canvasRef.current, zoom);
-        return handle.promise;
-      })
-      .then(() => {
-        if (!cancelled) setRendered(true);
+        if (!cancelled) setPage(p);
       })
       .catch(() => {
-        /* canceled or failed render — leave the white page box in place */
+        /* destroyed document — page stays blank */
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, layout.index]);
 
+  useEffect(() => {
+    const target = redacted?.page.proxy ?? page;
+    if (!target || !canvasRef.current) return;
+    setRendered(false);
+    let cancelled = false;
+    let handle: PageRenderHandle | null = null;
+    try {
+      handle = renderPage(target, canvasRef.current, zoom);
+    } catch {
+      return;
+    }
+    handle.promise
+      .then(() => {
+        if (cancelled) return;
+        setRendered(true);
+        setPaintVersion((v) => v + 1);
+      })
+      .catch(() => {
+        /* canceled or failed render — leave the current raster in place */
+      });
     return () => {
       cancelled = true;
       handle?.cancel();
     };
-  }, [doc, layout.index, zoom]);
+  }, [page, redacted, zoom]);
 
   return (
     <div
@@ -153,6 +253,9 @@ function PdfPageImpl({
             // layer sits above the page at z-[4] and otherwise swallows the drag).
             tool={handToolActive ? "off" : textTool}
             pageElement={pageEl}
+            cleanRectKeys={redacted?.page.cleanRectKeys ?? EMPTY_KEYS}
+            onLiveEditRect={setLiveEditRect}
+            paintVersion={paintVersion}
           />
         </>
       ) : null}
@@ -162,7 +265,7 @@ function PdfPageImpl({
         {layout.index + 1}
       </span>
 
-      {!rendered ? (
+      {!rendered && paintVersion === 0 ? (
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] text-black/30">
           {layout.index + 1}
         </span>

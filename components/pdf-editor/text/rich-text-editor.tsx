@@ -131,8 +131,9 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
       }}
       onBlur={commit}
       style={{
-        // Chrome-free in-place editing: white mask hides the original glyphs and
-        // the caret is the only visible affordance.
+        // Chrome-free in-place editing: the editor is TRANSPARENT (the layer
+        // underneath removes/masks the original glyphs with correct ink-extent
+        // geometry) and the caret is the only visible affordance.
         fontFamily: base.fontFamily,
         fontSize: base.fontSize * zoom,
         fontWeight: base.bold ? 700 : 400,
@@ -143,7 +144,6 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
         outline: "none",
-        background: "#ffffff",
         caretColor: "var(--primary)",
         minWidth: 4,
         ...style,

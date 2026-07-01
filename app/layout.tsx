@@ -13,6 +13,8 @@ import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ServiceWorker } from "@/components/service-worker";
 
+
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -76,19 +78,48 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${geistSans.variable} h-full`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-scroll-behavior="smooth"
+      className={`${geistSans.variable} h-full`}
+    >
       <body className="flex min-h-full flex-col antialiased">
-        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-NBNYLWRHLT" strategy="afterInteractive" />
+        {/* Google Analytics */}
+        <Script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-NBNYLWRHLT"
+          strategy="afterInteractive"
+        />
+
         <Script id="google-tag-manager" strategy="afterInteractive">
-          {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', 'G-NBNYLWRHLT');`}
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-NBNYLWRHLT');
+          `}
         </Script>
+
+        {/* ✅ Cloudflare Web Analytics */}
+        <Script
+          src="https://static.cloudflareinsights.com/beacon.min.js"
+          strategy="afterInteractive"
+          data-cf-beacon='{"token":"e21962de6aa34888a8d0b684c9e86654"}'
+        />
+
         <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
           <a
             href="#main"
             className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
@@ -97,9 +128,11 @@ gtag('config', 'G-NBNYLWRHLT');`}
           </a>
 
           <SiteHeader />
+
           <main id="main" className="flex-1">
             {children}
           </main>
+
           <SiteFooter />
 
           <Analytics />

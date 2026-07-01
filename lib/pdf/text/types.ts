@@ -45,6 +45,9 @@ export interface GlyphRun {
   sourceItemIndex: number;
   charStart: number;
   charEnd: number;
+  /** Descender depth in points below the baseline (bounds bottom). Glyphs like
+   *  g/y/p paint inside this strip, so masks must extend down by it. */
+  descent?: number;
 }
 
 export interface TextSpan {
@@ -59,6 +62,10 @@ export interface TextLine {
   id: string;
   text: string;
   bounds: Rect;
+  /** Full glyph-ink extent: `bounds` plus the descender strip below the
+   *  baseline. Whiteout masks and glyph removal must use this, not `bounds`,
+   *  or descenders (g/y/p) peek out beneath the mask. */
+  inkBounds?: Rect;
   spans: TextSpan[];
   baseline: number;
   direction: "ltr" | "rtl" | "ttb";

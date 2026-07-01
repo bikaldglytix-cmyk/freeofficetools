@@ -11,6 +11,7 @@ import { SignatureDialog, type SignatureSpec } from "@/components/pdf-editor/sig
 import type { TextTool } from "@/components/pdf-editor/text";
 import { fileToImageSpec, replaceSelectedImage } from "@/components/pdf-editor/image/image-actions";
 import { addAnnotationOperation, createSignatureAnnotation, type AnnotationTool } from "@/lib/pdf/annotations";
+import { warmRedaction } from "@/lib/pdf/editor/live/redact-page";
 import { createImageObject } from "@/lib/pdf/editor/model/factory";
 import { ops } from "@/lib/pdf/editor/operations/types";
 import { documentStore } from "@/lib/pdf/editor/store/document-store";
@@ -221,6 +222,15 @@ export function PdfViewer({ file }: { file: File }) {
     [insertImage],
   );
 
+  // Pre-parse the source for live glyph removal during idle time, so the very
+  // first text edit renders its cleaned page instantly instead of paying the
+  // full-file pdf-lib parse right when the user starts typing.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const timer = window.setTimeout(() => warmRedaction(file), 500);
+    return () => window.clearTimeout(timer);
+  }, [status, file]);
+
   // ----- Initial fit-to-width once the document + viewport are known -----
   const initializedRef = useRef(false);
   useEffect(() => {
@@ -409,6 +419,7 @@ export function PdfViewer({ file }: { file: File }) {
                   <PdfPage
                     key={p.index}
                     doc={doc}
+                    sourceFile={file}
                     layout={p}
                     zoom={zoom}
                     matches={search.matchesByPage.get(p.index) ?? EMPTY_MATCHES}

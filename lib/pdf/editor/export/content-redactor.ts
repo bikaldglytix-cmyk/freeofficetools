@@ -39,6 +39,10 @@ export interface RedactionResult {
   /** Number of text-show operators blanked. */
   removed: number;
   reason?: string;
+  /** Per input region: whether at least one show operator was blanked inside it.
+   *  A region that never matched (e.g. its text lives in a form XObject) still
+   *  needs a visual mask. Same order as the input `regions`. */
+  matched?: boolean[];
 }
 
 /** A small tolerance (pt) around a region so baselines just inside still match. */
@@ -63,14 +67,15 @@ export function regionFromVisualRect(rect: Rect, pageHeight: number): RemovalReg
  * safely rewritten.
  */
 export function removeTextInRegions(page: PDFPage, regions: readonly RemovalRegion[]): RedactionResult {
-  if (regions.length === 0) return { ok: true, removed: 0 };
+  if (regions.length === 0) return { ok: true, removed: 0, matched: [] };
   try {
     const src = readContent(page);
     if (src === null) return { ok: false, removed: 0, reason: "no-content-stream" };
-    const edits = computeRemovals(src, regions);
-    if (edits.length === 0) return { ok: true, removed: 0 };
+    const matched = new Array<boolean>(regions.length).fill(false);
+    const edits = computeRemovals(src, regions, matched);
+    if (edits.length === 0) return { ok: true, removed: 0, matched };
     writeContent(page, applyEdits(src, edits));
-    return { ok: true, removed: edits.length };
+    return { ok: true, removed: edits.length, matched };
   } catch (err) {
     return { ok: false, removed: 0, reason: err instanceof Error ? err.message : String(err) };
   }
@@ -287,9 +292,10 @@ interface Edit {
 /**
  * Walk the content stream, tracking the CTM and text matrices, and return the
  * byte-range edits that blank the string operand of every show operator whose
- * origin lands inside a region.
+ * origin lands inside a region. When `matchedOut` is supplied it is filled with
+ * a per-region flag saying whether any operator was blanked inside that region.
  */
-export function computeRemovals(src: string, regions: readonly RemovalRegion[]): Edit[] {
+export function computeRemovals(src: string, regions: readonly RemovalRegion[], matchedOut?: boolean[]): Edit[] {
   const toks = tokenize(src);
   let ctm: Matrix = [...IDENTITY];
   const ctmStack: Matrix[] = [];
@@ -308,8 +314,8 @@ export function computeRemovals(src: string, regions: readonly RemovalRegion[]):
     tlm = multiply([1, 0, 0, 1, 0, -leading], tlm);
     tm = [...tlm];
   };
-  const inRegion = (x: number, y: number): boolean =>
-    regions.some((r) => x >= r.x0 - PAD && x <= r.x1 + PAD && y >= r.y0 - PAD && y <= r.y1 + PAD);
+  const regionIndexAt = (x: number, y: number): number =>
+    regions.findIndex((r) => x >= r.x0 - PAD && x <= r.x1 + PAD && y >= r.y0 - PAD && y <= r.y1 + PAD);
 
   for (const t of toks) {
     if (t.type !== "op") {
@@ -373,9 +379,18 @@ export function computeRemovals(src: string, regions: readonly RemovalRegion[]):
         if (t.op === "'" || t.op === '"') newline();
         const [ox, oy] = applyPoint(ctm, tm[4], tm[5]);
         const textTok = operands[operands.length - 1];
-        if (textTok && inRegion(ox, oy)) {
+        const regionIndex = textTok ? regionIndexAt(ox, oy) : -1;
+        if (textTok && regionIndex >= 0) {
           const replacement = textTok.type === "array" ? "[]" : textTok.type === "hexstring" ? "<>" : "()";
           edits.push({ start: textTok.start, end: textTok.end, replacement });
+          if (matchedOut) {
+            // Mark EVERY region containing this origin, not just the first — two
+            // edited lines can overlap and each must know its glyphs are gone.
+            for (let ri = 0; ri < regions.length; ri++) {
+              const r = regions[ri];
+              if (ox >= r.x0 - PAD && ox <= r.x1 + PAD && oy >= r.y0 - PAD && oy <= r.y1 + PAD) matchedOut[ri] = true;
+            }
+          }
         }
         break;
       }
