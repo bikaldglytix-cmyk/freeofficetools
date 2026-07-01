@@ -217,26 +217,59 @@ function isJpegImage(stream: PDFRawStream): boolean {
   return false;
 }
 
-/** Decode a JPEG, optionally downsample, and re-encode at `quality`. */
+/** Scale (w, h) down so the longest side fits `maxDim`; returns {0,0} if invalid. */
+function fitWithin(w: number, h: number, maxDim: number): { w: number; h: number } {
+  if (!w || !h) return { w: 0, h: 0 };
+  const longest = Math.max(w, h);
+  if (longest <= maxDim) return { w, h };
+  const k = maxDim / longest;
+  return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) };
+}
+
+/**
+ * Decode a JPEG, optionally downsample, and re-encode at `quality`.
+ *
+ * Prefers `createImageBitmap` + `OffscreenCanvas`, which work both in a worker
+ * (where the compressor runs off the main thread) and on the main thread — no
+ * DOM required. Falls back to `<img>` + `<canvas>` on the main thread, and
+ * returns `null` (skip — lossless re-save still applies) where no canvas API
+ * exists at all, e.g. the Node test environment.
+ */
 async function recompressJpeg(
   src: Uint8Array,
   maxDim: number,
   quality: number,
 ): Promise<{ bytes: Uint8Array; width: number; height: number } | null> {
-  if (typeof document === "undefined") return null;
   const blob = new Blob([src as unknown as BlobPart], { type: "image/jpeg" });
+
+  // Preferred, worker-safe path.
+  if (typeof createImageBitmap === "function" && typeof OffscreenCanvas === "function") {
+    let bitmap: ImageBitmap | null = null;
+    try {
+      bitmap = await createImageBitmap(blob);
+      const { w, h } = fitWithin(bitmap.width, bitmap.height, maxDim);
+      if (!w || !h) return null;
+      const canvas = new OffscreenCanvas(w, h);
+      const cx = canvas.getContext("2d");
+      if (!cx) return null;
+      cx.drawImage(bitmap, 0, 0, w, h);
+      const outBlob = await canvas.convertToBlob({ type: "image/jpeg", quality });
+      if (!outBlob) return null;
+      return { bytes: new Uint8Array(await outBlob.arrayBuffer()), width: w, height: h };
+    } catch {
+      return null;
+    } finally {
+      bitmap?.close();
+    }
+  }
+
+  // DOM fallback (main thread, older browsers). Absent in Node → skipped.
+  if (typeof document === "undefined") return null;
   const url = URL.createObjectURL(blob);
   try {
     const img = await loadImage(url);
-    let w = img.naturalWidth;
-    let h = img.naturalHeight;
+    const { w, h } = fitWithin(img.naturalWidth, img.naturalHeight, maxDim);
     if (!w || !h) return null;
-    const longest = Math.max(w, h);
-    if (longest > maxDim) {
-      const k = maxDim / longest;
-      w = Math.max(1, Math.round(w * k));
-      h = Math.max(1, Math.round(h * k));
-    }
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;

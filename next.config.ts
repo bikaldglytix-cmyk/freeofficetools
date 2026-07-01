@@ -104,7 +104,17 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Never let the browser cache the service worker itself, so a new deploy's
+      // sw.js (and its bumped CACHE_VERSION) is picked up on the next visit.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+    ];
   },
   async redirects() {
     return legacyToolRedirects;

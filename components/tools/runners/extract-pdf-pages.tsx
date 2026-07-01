@@ -9,7 +9,7 @@ import { FilePill, ThumbsLoading, type RunnerProps } from "@/components/tools/sh
 import { PageGrid, PageTile } from "@/components/tools/page-grid";
 import { usePageThumbnails } from "@/components/tools/use-thumbnails";
 import { validateFiles } from "@/lib/files";
-import { extractPdfPages } from "@/lib/pdf/extract-pages";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 export function ExtractPdfPages({ tool }: RunnerProps) {
   const proc = useProcessor(tool.slug);
@@ -91,11 +91,7 @@ export function ExtractPdfPages({ tool }: RunnerProps) {
                   disabled={!canRun}
                   onClick={() =>
                     proc.run((r) =>
-                      extractPdfPages(
-                        [file],
-                        { pages: [...selected].sort((a, b) => a - b) },
-                        { onProgress: r },
-                      ),
+                      runPdfOp("extract-pages", [file], { pages: [...selected].sort((a, b) => a - b) }, r),
                     )
                   }
                 >

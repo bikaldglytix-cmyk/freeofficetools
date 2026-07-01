@@ -10,7 +10,7 @@ import { FilePill, ThumbsLoading, type RunnerProps } from "@/components/tools/sh
 import { PageGrid, PageTile } from "@/components/tools/page-grid";
 import { usePageThumbnails } from "@/components/tools/use-thumbnails";
 import { validateFiles } from "@/lib/files";
-import { reorderPdfPages } from "@/lib/pdf/reorder";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 export function ReorderPdfPages({ tool }: RunnerProps) {
   const proc = useProcessor(tool.slug);
@@ -112,7 +112,7 @@ export function ReorderPdfPages({ tool }: RunnerProps) {
                 <Button
                   size="lg"
                   disabled={order.length === 0}
-                  onClick={() => proc.run((r) => reorderPdfPages([file], { order }, { onProgress: r }))}
+                  onClick={() => proc.run((r) => runPdfOp("reorder", [file], { order }, r))}
                 >
                   Save new order
                 </Button>

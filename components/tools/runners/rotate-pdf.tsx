@@ -10,7 +10,7 @@ import { FilePill, ThumbsLoading, type RunnerProps } from "@/components/tools/sh
 import { PageGrid, PageTile } from "@/components/tools/page-grid";
 import { usePageThumbnails } from "@/components/tools/use-thumbnails";
 import { validateFiles } from "@/lib/files";
-import { rotatePdfPages } from "@/lib/pdf/rotate";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 function norm(deg: number) {
   return ((deg % 360) + 360) % 360;
@@ -115,7 +115,7 @@ export function RotatePdf({ tool }: RunnerProps) {
                 <Button
                   size="lg"
                   disabled={!hasChanges}
-                  onClick={() => proc.run((r) => rotatePdfPages([file], { rotations }, { onProgress: r }))}
+                  onClick={() => proc.run((r) => runPdfOp("rotate-pages", [file], { rotations }, r))}
                 >
                   Apply rotation
                 </Button>

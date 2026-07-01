@@ -8,7 +8,8 @@ import { useProcessor } from "@/components/tools/use-processor";
 import { ToolFrame } from "@/components/tools/tool-frame";
 import { FilePill, Field, RadioCards, type RunnerProps } from "@/components/tools/shared";
 import { validateFiles } from "@/lib/files";
-import { imagesToPdf, type PageSize, type Orientation } from "@/lib/pdf/images-to-pdf";
+import type { PageSize, Orientation } from "@/lib/pdf/images-to-pdf";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 export function JpgToPdf({ tool }: RunnerProps) {
   const proc = useProcessor(tool.slug);
@@ -140,7 +141,7 @@ export function JpgToPdf({ tool }: RunnerProps) {
               size="lg"
               onClick={() =>
                 proc.run((report) =>
-                  imagesToPdf(files, { pageSize, orientation, margin }, { onProgress: report }),
+                  runPdfOp("images-to-pdf", files, { pageSize, orientation, margin }, report),
                 )
               }
             >

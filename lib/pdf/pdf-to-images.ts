@@ -20,6 +20,14 @@ export async function pdfToImages(
   const file = files[0];
   if (!file) throw new Error("Add a PDF first.");
 
+  // In a worker there's no DOM, so rasterize via OffscreenCanvas off the main
+  // thread. On the main thread (the no-Worker fallback) keep the DOM canvas path
+  // below, which preserves full filter/blend fidelity.
+  if (typeof document === "undefined") {
+    const { pdfToImagesOffscreen } = await import("@/lib/pdf/render-offscreen");
+    return pdfToImagesOffscreen(files, options, ctx);
+  }
+
   const pdfjs = await getPdfjs();
   const data = new Uint8Array(await file.arrayBuffer());
   const loadingTask = pdfjs.getDocument({ data });

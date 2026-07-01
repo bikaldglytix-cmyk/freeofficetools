@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { Analytics } from "@/components/analytics";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ServiceWorker } from "@/components/service-worker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -95,6 +96,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 
           <Analytics />
           <VercelAnalytics />
+          <ServiceWorker />
         </ThemeProvider>
       </body>
     </html>

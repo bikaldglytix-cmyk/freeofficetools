@@ -9,7 +9,7 @@ import { FilePill, ThumbsLoading, type RunnerProps } from "@/components/tools/sh
 import { PageGrid, PageTile } from "@/components/tools/page-grid";
 import { usePageThumbnails } from "@/components/tools/use-thumbnails";
 import { validateFiles } from "@/lib/files";
-import { deletePdfPages } from "@/lib/pdf/delete-pages";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 export function DeletePdfPages({ tool }: RunnerProps) {
   const proc = useProcessor(tool.slug);
@@ -86,7 +86,7 @@ export function DeletePdfPages({ tool }: RunnerProps) {
                   size="lg"
                   disabled={!canRun}
                   onClick={() =>
-                    proc.run((r) => deletePdfPages([file], { pages: [...selected] }, { onProgress: r }))
+                    proc.run((r) => runPdfOp("delete-pages", [file], { pages: [...selected] }, r))
                   }
                 >
                   Delete {selected.size > 0 ? selected.size : ""} page{selected.size === 1 ? "" : "s"}

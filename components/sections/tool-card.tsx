@@ -1,13 +1,15 @@
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { ToolCardItem } from "@/lib/links";
 import { toolHref } from "@/lib/links";
+import { WarmLink } from "@/components/sections/warm-link";
 
 export function ToolCard({ tool }: { tool: ToolCardItem }) {
   const Icon = tool.icon;
   return (
-    <Link
+    <WarmLink
       href={toolHref(tool)}
+      warmCategory={tool.category}
+      warmSlug={tool.slug}
       className="group relative flex items-center gap-4 rounded-xl border border-transparent p-4 transition-all hover:border-border/40 hover:bg-muted/30"
     >
       <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background shadow-soft ring-1 ring-border/50 transition-colors group-hover:bg-primary group-hover:text-primary-foreground group-hover:ring-primary">
@@ -20,7 +22,7 @@ export function ToolCard({ tool }: { tool: ToolCardItem }) {
       <div className="mr-2 text-primary opacity-0 transition-all duration-300 group-hover:-translate-x-1 group-hover:opacity-100">
         <ArrowRight className="size-4" />
       </div>
-    </Link>
+    </WarmLink>
   );
 }
 

@@ -7,7 +7,7 @@ import { useProcessor } from "@/components/tools/use-processor";
 import { ToolFrame } from "@/components/tools/tool-frame";
 import { FilePill, Field, TextInput, type RunnerProps } from "@/components/tools/shared";
 import { validateFiles } from "@/lib/files";
-import { watermarkPdf } from "@/lib/pdf/watermark";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 import { renderFirstPagePreview, type FirstPagePreview } from "@/lib/pdf/watermark-preview";
 
 interface WatermarkSettings {
@@ -262,7 +262,7 @@ export function WatermarkPdf({ tool }: RunnerProps) {
                   disabled={!text.trim()}
                   onClick={() =>
                     proc.run((report) =>
-                      watermarkPdf([file], { text, fontSize, opacity, color, rotation }, { onProgress: report }),
+                      runPdfOp("watermark", [file], { text, fontSize, opacity, color, rotation }, report),
                     )
                   }
                 >

@@ -8,7 +8,7 @@ import { useProcessor } from "@/components/tools/use-processor";
 import { ToolFrame } from "@/components/tools/tool-frame";
 import { FilePill, type RunnerProps } from "@/components/tools/shared";
 import { validateFiles } from "@/lib/files";
-import { mergePdfs } from "@/lib/pdf/merge";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 export function MergePdf({ tool }: RunnerProps) {
   const proc = useProcessor(tool.slug);
@@ -96,7 +96,7 @@ export function MergePdf({ tool }: RunnerProps) {
             <Button
               size="lg"
               disabled={files.length < 2}
-              onClick={() => proc.run((report) => mergePdfs(files, undefined, { onProgress: report }))}
+              onClick={() => proc.run((report) => runPdfOp("merge", files, undefined, report))}
             >
               Merge PDF
             </Button>

@@ -8,7 +8,7 @@ import { useProcessor } from "@/components/tools/use-processor";
 import { ToolFrame } from "@/components/tools/tool-frame";
 import { FilePill, Field, RadioCards, type RunnerProps } from "@/components/tools/shared";
 import { validateFiles, baseName, formatBytes } from "@/lib/files";
-import { compressPdf } from "@/lib/pdf/compress";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 type Level = "low" | "recommended" | "strong";
 type Mode = "level" | "target";
@@ -79,9 +79,9 @@ export function CompressPdf({ tool }: RunnerProps) {
       if (!Number.isFinite(mb) || mb <= 0) return setErr("Enter a target size larger than 0 MB.");
       setErr(null);
       const targetBytes = Math.round(mb * 1024 * 1024);
-      proc.run((report) => compressPdf([file], { ...PRESETS.recommended, targetBytes }, { onProgress: report }));
+      proc.run((report) => runPdfOp("compress", [file], { ...PRESETS.recommended, targetBytes }, report));
     } else {
-      proc.run((report) => compressPdf([file], PRESETS[level], { onProgress: report }));
+      proc.run((report) => runPdfOp("compress", [file], PRESETS[level], report));
     }
   }
 

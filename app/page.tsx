@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, MousePointerClick, Upload, Download } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { ToolCategory } from "@/lib/links";
+import { WarmLink } from "@/components/sections/warm-link";
 import { tools } from "@/lib/tools";
 import { mediaTools } from "@/lib/media/tools";
 import { officeTools } from "@/lib/office/tools";
@@ -34,6 +36,8 @@ interface TileItem {
   name: string;
   href: string;
   Icon: LucideIcon;
+  category: ToolCategory;
+  slug: string;
 }
 
 function ToolSection({
@@ -68,8 +72,10 @@ function ToolSection({
       <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((item) => (
           <li key={item.href}>
-            <Link
+            <WarmLink
               href={item.href}
+              warmCategory={item.category}
+              warmSlug={item.slug}
               className="group flex h-full items-center gap-2.5 rounded-xl border border-border/60 bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-muted/40"
             >
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -78,7 +84,7 @@ function ToolSection({
               <span className="text-sm font-medium leading-tight text-foreground transition-colors group-hover:text-primary">
                 {item.name}
               </span>
-            </Link>
+            </WarmLink>
           </li>
         ))}
       </ul>
@@ -136,9 +142,9 @@ export default function HomePage() {
     })),
   };
 
-  const pdfItems: TileItem[] = tools.map((t) => ({ name: t.name, href: `/pdf-tools/${t.slug}`, Icon: t.icon }));
-  const officeItems: TileItem[] = officeTools.map((t) => ({ name: t.name, href: `/office-tools/${t.slug}`, Icon: t.icon }));
-  const mediaItems: TileItem[] = mediaTools.map((t) => ({ name: t.name, href: `/media-tools/${t.slug}`, Icon: t.icon }));
+  const pdfItems: TileItem[] = tools.map((t) => ({ name: t.name, href: `/pdf-tools/${t.slug}`, Icon: t.icon, category: "pdf", slug: t.slug }));
+  const officeItems: TileItem[] = officeTools.map((t) => ({ name: t.name, href: `/office-tools/${t.slug}`, Icon: t.icon, category: "office", slug: t.slug }));
+  const mediaItems: TileItem[] = mediaTools.map((t) => ({ name: t.name, href: `/media-tools/${t.slug}`, Icon: t.icon, category: "media", slug: t.slug }));
 
   return (
     <div className="mx-auto max-w-5xl space-y-16 px-4 pb-24 pt-8 sm:px-6 md:space-y-24 md:pt-16">

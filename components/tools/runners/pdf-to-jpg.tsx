@@ -8,7 +8,7 @@ import { ToolFrame } from "@/components/tools/tool-frame";
 import { FilePill, Field, TextInput, RadioCards, type RunnerProps } from "@/components/tools/shared";
 import { validateFiles, baseName } from "@/lib/files";
 import { getPageCount, parsePageList } from "@/lib/pdf/core";
-import { pdfToImages } from "@/lib/pdf/pdf-to-images";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 type Quality = "screen" | "print";
 const PRESETS: Record<Quality, { scale: number; quality: number }> = {
@@ -96,7 +96,7 @@ export function PdfToJpg({ tool }: RunnerProps) {
                 proc.run((report) => {
                   const pages =
                     pagesInput.trim() && pageCount ? parsePageList(pagesInput, pageCount) : undefined;
-                  return pdfToImages([file], { ...PRESETS[quality], pages }, { onProgress: report });
+                  return runPdfOp("pdf-to-images", [file], { ...PRESETS[quality], pages }, report);
                 })
               }
             >

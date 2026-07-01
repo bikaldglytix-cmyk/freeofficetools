@@ -8,7 +8,8 @@ import { ToolFrame } from "@/components/tools/tool-frame";
 import { FilePill, Field, TextInput, RadioCards, type RunnerProps } from "@/components/tools/shared";
 import { validateFiles, baseName } from "@/lib/files";
 import { getPageCount } from "@/lib/pdf/core";
-import { splitPdf, type SplitOptions } from "@/lib/pdf/split";
+import type { SplitOptions } from "@/lib/pdf/split";
+import { runPdfOp } from "@/lib/pdf/worker/pdf-worker-client";
 
 export function SplitPdf({ tool }: RunnerProps) {
   const proc = useProcessor(tool.slug);
@@ -93,7 +94,7 @@ export function SplitPdf({ tool }: RunnerProps) {
             <Button
               size="lg"
               disabled={!canRun}
-              onClick={() => proc.run((report) => splitPdf([file], { mode, ranges }, { onProgress: report }))}
+              onClick={() => proc.run((report) => runPdfOp("split", [file], { mode, ranges }, report))}
             >
               Split PDF
             </Button>
