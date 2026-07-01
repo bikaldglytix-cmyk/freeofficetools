@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 import { siteConfig } from "@/lib/site";
@@ -79,6 +80,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className={`${geistSans.variable} h-full`}>
       <body className="flex min-h-full flex-col antialiased">
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-NBNYLWRHLT" strategy="afterInteractive" />
+        <Script id="google-tag-manager" strategy="afterInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-NBNYLWRHLT');`}
+        </Script>
         <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <a
