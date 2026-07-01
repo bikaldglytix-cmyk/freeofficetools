@@ -4,17 +4,18 @@ import { ArrowRight } from "lucide-react";
 
 import { tools } from "@/lib/tools";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd, canonical } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 import { ToolGrid } from "@/components/sections/tool-card";
 import { TrustBar } from "@/components/sections/trust-bar";
 import { Faq } from "@/components/sections/faq";
 
+const seo = staticPageSeo("/pdf-tools");
 export const metadata: Metadata = buildMetadata({
-  title: "All PDF Tools — Free & Private",
-  description:
-    "Every FreeOfficeTools PDF utility in one place: merge, split, compress, rotate, convert and watermark PDFs. Free, private and processed in your browser.",
-  path: "/pdf-tools",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: ["free pdf tools", "online pdf tools", "pdf utilities", "edit pdf online"],
 });
 

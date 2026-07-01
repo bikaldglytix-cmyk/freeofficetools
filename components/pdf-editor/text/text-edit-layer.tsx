@@ -8,6 +8,7 @@ import { reflowBelowOps } from "@/lib/pdf/editor/model/reflow";
 import { documentStore } from "@/lib/pdf/editor/store/document-store";
 import { useDispatch, useDispatchAll, useDocument, usePageObjects, useSelection, useSelectionActions } from "@/lib/pdf/editor/store/hooks";
 import { rectKey } from "@/lib/pdf/editor/live/redact-page";
+import { fontFamilyStack } from "@/lib/pdf/text/fonts";
 import { clampRect, clientPointToPdfPoint, expandRect, pdfToViewportRect, type Point } from "@/lib/pdf/text/geometry";
 import { caretIndexAtX, measureTextBoxHeight } from "@/lib/pdf/text/measure";
 import {
@@ -20,7 +21,6 @@ import { runsFromSpans, type RichResult } from "@/lib/pdf/text/rich-runs";
 import type { TextBlock as NativeTextBlock, TextStyle } from "@/lib/pdf/text/types";
 import { lineMaskRect, storedWhiteoutBounds } from "@/lib/pdf/text/whiteout";
 import { sampleBackgroundColor } from "@/lib/pdf/viewer/sample-background";
-import { TextStyleControls } from "@/components/pdf-editor/toolbar/text-style-controls";
 import { useTextExtraction } from "./use-text-extraction";
 import { TextBlockEditor } from "./text-block-editor";
 import { RichTextEditor, getActiveRichEditor } from "./rich-text-editor";
@@ -228,12 +228,6 @@ export function TextEditLayer({
     [pageId, selection.ids, selection.pageId],
   );
 
-  // The single selected text block on this page drives the inline style popover.
-  const selectedTextObject = useMemo(
-    () => (selectedIds.length === 1 ? textObjects.find((o) => o.id === selectedIds[0]) ?? null : null),
-    [selectedIds, textObjects],
-  );
-
   const toPoint = useCallback(
     (clientX: number, clientY: number): Point | null => {
       if (!pageElement) return null;
@@ -254,7 +248,7 @@ export function TextEditLayer({
       const measured = measureTextBoxHeight({
         text,
         widthPoints: object.rect.width,
-        fontFamily: object.fontFamily,
+        fontFamily: fontFamilyStack(object.fontFamily, object.pdfFontFamily),
         fontSizePoints: font,
         bold: object.bold,
         italic: object.italic,
@@ -297,7 +291,7 @@ export function TextEditLayer({
       const measured = measureTextBoxHeight({
         text,
         widthPoints: block.bounds.width,
-        fontFamily: block.style.font.fallbackFamily,
+        fontFamily: fontFamilyStack(block.style.font.fallbackFamily, block.style.font.cssName),
         fontSizePoints: maxFont,
         bold: block.style.bold,
         italic: block.style.italic,
@@ -336,7 +330,7 @@ export function TextEditLayer({
         text: b.text,
         xPx: e.clientX - left,
         fontSizePx: b.style.fontSize * zoom,
-        fontFamily: b.style.font.fallbackFamily,
+        fontFamily: fontFamilyStack(b.style.font.fallbackFamily, b.style.font.cssName),
         bold: b.style.bold,
         italic: b.style.italic,
       });
@@ -535,25 +529,6 @@ export function TextEditLayer({
         />
       ) : null}
 
-      {/* Inline style popover floating above the selected text box, so the
-          font / size / colour / weight controls sit next to the text instead of
-          in the far top toolbar. Hidden while that box is being typed in. */}
-      {selectedTextObject && editingId !== selectedTextObject.id ? (
-        <div
-          className="absolute z-[6] rounded-md border border-border bg-card px-1.5 py-1 shadow-md"
-          style={{
-            left: Math.min(selectedTextObject.rect.x * zoom, Math.max(0, width - 340)),
-            top:
-              selectedTextObject.rect.y * zoom - 44 >= 0
-                ? selectedTextObject.rect.y * zoom - 44
-                : (selectedTextObject.rect.y + selectedTextObject.rect.height) * zoom + 8,
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <TextStyleControls object={selectedTextObject} />
-        </div>
-      ) : null}
-
       {/* Mask under the inline editor: covers the original glyphs' full ink
           extent until the canvas render without them lands (then the key turns
           "clean" and the real page background shows through the transparent
@@ -592,6 +567,7 @@ export function TextEditLayer({
             runs={runsFromSpans(nativeEdit.lines[0]?.spans ?? [])}
             base={{
               fontFamily: nativeEdit.style.font.available ? nativeEdit.style.font.family : nativeEdit.style.font.fallbackFamily,
+              pdfFontFamily: nativeEdit.style.font.cssName,
               fontSize: nativeEdit.style.fontSize,
               color: nativeEdit.style.color,
               bold: nativeEdit.style.bold,

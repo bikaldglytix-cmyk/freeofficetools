@@ -87,6 +87,9 @@ export type TextAlign = "left" | "center" | "right" | "justify";
 export interface TextRun {
   text: string;
   fontFamily?: string;
+  /** Embedded pdf.js @font-face family (e.g. "g_d0_f3") rendered before
+   *  `fontFamily` so the run keeps the document's exact glyphs on screen. */
+  pdfFontFamily?: string;
   fontSize?: number;
   color?: string;
   bold?: boolean;
@@ -101,6 +104,8 @@ export interface TextBlock extends BaseObject {
   /** Optional rich runs; when present, overrides block-level styling. */
   runs?: TextRun[];
   fontFamily: string;
+  /** Embedded pdf.js @font-face family for on-screen rendering (see TextRun). */
+  pdfFontFamily?: string;
   fontSize: number;
   color: string;
   align: TextAlign;

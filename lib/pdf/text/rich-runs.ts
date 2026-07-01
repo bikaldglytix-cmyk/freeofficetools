@@ -16,7 +16,7 @@
  */
 import type { TextRun } from "@/lib/pdf/editor/model/types";
 import type { TextSpan, TextStyle } from "./types";
-import { analyzePdfFont, cssFontFamily, matchFont } from "./fonts";
+import { analyzePdfFont, fontFamilyStack, matchFont } from "./fonts";
 
 export interface RichResult {
   /** Flattened plain text (the block's source-of-truth `text`). */
@@ -28,6 +28,8 @@ export interface RichResult {
 /** The block-level defaults a run inherits when it sets no override. */
 export interface RunBaseStyle {
   fontFamily: string;
+  /** Embedded pdf.js @font-face family, rendered before `fontFamily`. */
+  pdfFontFamily?: string;
   fontSize: number;
   color: string;
   bold: boolean;
@@ -45,6 +47,7 @@ function runFromStyle(text: string, style: TextStyle): TextRun {
   return {
     text,
     fontFamily: style.font.available ? style.font.family : style.font.fallbackFamily,
+    pdfFontFamily: style.font.cssName,
     fontSize: style.fontSize,
     color: style.color,
     bold: style.bold,
@@ -53,9 +56,29 @@ function runFromStyle(text: string, style: TextStyle): TextRun {
   };
 }
 
-/** One run per native span (adjacent equal-style spans are merged). */
+/**
+ * One run per native glyph run (adjacent equal-style runs are merged). A span
+ * groups glyphs by word gap, not by style, so a single span can mix fonts —
+ * e.g. a serif name next to a sans label on the same line. Walking the glyph
+ * runs keeps each part's own face/size instead of flattening the span to its
+ * first glyph's style.
+ */
 export function runsFromSpans(spans: readonly TextSpan[]): TextRun[] {
-  return normalizeRuns(spans.map((s) => runFromStyle(s.text, s.style)));
+  const out: TextRun[] = [];
+  for (const s of spans) {
+    if (!s.runs?.length) {
+      out.push(runFromStyle(s.text, s.style));
+      continue;
+    }
+    for (const r of s.runs) out.push(runFromStyle(r.text, r.style));
+    // The span's text may carry a synthesized trailing word gap not present in
+    // any glyph run — keep it so line text round-trips unchanged.
+    const joined = s.runs.map((r) => r.text).join("");
+    if (s.text.length > joined.length && s.text.startsWith(joined)) {
+      out[out.length - 1].text += s.text.slice(joined.length);
+    }
+  }
+  return normalizeRuns(out);
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +89,7 @@ export function runsFromSpans(spans: readonly TextSpan[]): TextRun[] {
 export function runStyleKey(r: TextRun): string {
   return [
     (r.fontFamily ?? "").toLowerCase(),
+    r.pdfFontFamily ?? "",
     r.fontSize ?? "",
     (r.color ?? "").toLowerCase(),
     r.bold ? 1 : 0,
@@ -96,8 +120,9 @@ function esc(s: string): string {
 
 function runCss(r: TextRun, base: RunBaseStyle, zoom: number): string {
   const family = r.fontFamily ?? base.fontFamily;
+  const pdfFamily = r.pdfFontFamily ?? (r.fontFamily === undefined ? base.pdfFontFamily : undefined);
   const css = [
-    `font-family:${cssFamily(family)}`,
+    `font-family:${cssFamily(family, pdfFamily)}`,
     `font-size:${(r.fontSize ?? base.fontSize) * zoom}px`,
     `color:${r.color ?? base.color}`,
     `font-weight:${(r.bold ?? base.bold) ? 700 : 400}`,
@@ -135,12 +160,30 @@ function rgbToHex(value: string): string | null {
   return `#${h(r)}${h(g)}${h(b)}`;
 }
 
-/** Map a CSS font-family list back to one of our known families. */
-function mapFamily(cssValue: string, fallback: string): string {
-  const first = cssValue.split(",")[0]?.trim().replace(/^["']|["']$/g, "");
-  if (!first) return fallback;
+/** pdf.js registers embedded fonts under loaded names like "g_d0_f3". */
+const PDF_FACE_RE = /^g_d\d+_f/;
+
+/**
+ * Map a computed CSS font-family list back to `{ fontFamily, pdfFontFamily }`.
+ * The embedded pdf.js face (if present in the stack) is carried separately so
+ * committed runs keep rendering with the document's exact glyphs.
+ */
+function mapFamily(cssValue: string, base: RunBaseStyle): { fontFamily: string; pdfFontFamily?: string } {
+  const entries = cssValue
+    .split(",")
+    .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+  const pdfFontFamily = entries.find((e) => PDF_FACE_RE.test(e));
+  const first = entries.find((e) => !PDF_FACE_RE.test(e));
+  if (!first) return { fontFamily: base.fontFamily, pdfFontFamily: pdfFontFamily ?? base.pdfFontFamily };
   const matched = matchFont(analyzePdfFont(first));
-  return matched.available ? matched.family : first;
+  // A bare generic keyword ("serif") maps to its concrete fallback family.
+  const fontFamily = matched.available
+    ? matched.family
+    : /^(serif|sans-serif|monospace)$/.test(first)
+      ? matched.fallbackFamily
+      : first;
+  return { fontFamily, pdfFontFamily };
 }
 
 function styleFromElement(el: Element, base: RunBaseStyle, zoom: number): Omit<TextRun, "text"> {
@@ -149,7 +192,7 @@ function styleFromElement(el: Element, base: RunBaseStyle, zoom: number): Omit<T
   const px = parseFloat(cs.fontSize);
   const deco = `${cs.textDecorationLine || ""} ${cs.textDecoration || ""}`;
   return {
-    fontFamily: mapFamily(cs.fontFamily, base.fontFamily),
+    ...mapFamily(cs.fontFamily, base),
     fontSize: Number.isFinite(px) && px > 0 ? Math.round((px / zoom) * 10) / 10 : base.fontSize,
     color: rgbToHex(cs.color) ?? base.color,
     bold: weight === "bold" || (parseInt(weight, 10) || 400) >= 600,
@@ -199,7 +242,8 @@ export function serializeDom(root: HTMLElement, base: RunBaseStyle, zoom: number
 
 // ---------------------------------------------------------------------------
 
-/** A concrete CSS font stack for a family name (reuses the export mapping). */
-function cssFamily(family: string): string {
-  return cssFontFamily(matchFont(analyzePdfFont(family)));
+/** A concrete CSS font stack for a family name, embedded face first. */
+function cssFamily(family: string, pdfFontFamily?: string): string {
+  const matched = matchFont(analyzePdfFont(family));
+  return fontFamilyStack(matched.available ? matched.family : matched.fallbackFamily, pdfFontFamily);
 }

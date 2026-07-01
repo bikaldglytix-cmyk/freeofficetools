@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { applyStyleToSelectedText } from "@/components/pdf-editor/text";
 
 const FONT_FAMILIES = ["Arial", "Helvetica", "Times New Roman", "Courier New", "Georgia", "Verdana"];
+/** Sentinel for "still rendering with the document's embedded font". */
+const ORIGINAL_FONT = "__original__";
 const HEX = /^#[0-9a-f]{6}$/i;
 
 const ALIGNS: Array<[TextAlign, typeof AlignLeft, string]> = [
@@ -21,20 +23,26 @@ function toHex(color: string | undefined): string {
 
 /**
  * The font / size / colour / weight / alignment controls for the selected text
- * block. Extracted from the toolbar so the same control set can live in the
- * inline popover that floats above the selected box (closer to the text being
- * edited). Acts on the live store selection via {@link applyStyleToSelectedText}.
+ * block. Rendered in the toolbar's "Edit Text" row (never floating over the
+ * page, so it can't cover the text being edited). Acts on the live store
+ * selection via {@link applyStyleToSelectedText}.
  */
 export function TextStyleControls({ object }: { object: EditorTextBlock }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex items-center gap-1.5">
       <select
         aria-label="Font family"
         title="Font family"
-        value={object.fontFamily ?? "Arial"}
-        onChange={(e) => applyStyleToSelectedText({ font: matchFont(analyzePdfFont(e.target.value)) })}
+        value={object.pdfFontFamily ? ORIGINAL_FONT : object.fontFamily ?? "Arial"}
+        onChange={(e) => {
+          if (e.target.value === ORIGINAL_FONT) return;
+          applyStyleToSelectedText({ font: matchFont(analyzePdfFont(e.target.value)) });
+        }}
         className="h-8 rounded-md border border-border bg-background px-1 text-xs text-foreground"
       >
+        {/* Text keeping its embedded PDF face says so, instead of claiming a
+            system font it isn't using. Picking a family below switches to it. */}
+        {object.pdfFontFamily ? <option value={ORIGINAL_FONT}>Original font</option> : null}
         {FONT_FAMILIES.map((f) => (
           <option key={f} value={f}>
             {f}

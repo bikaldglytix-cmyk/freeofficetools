@@ -68,6 +68,7 @@ function baseObject(kind: BaseObject["kind"], input: BaseInput): BaseObject {
 export interface CreateTextInput extends BaseInput {
   text: string;
   fontFamily?: string;
+  pdfFontFamily?: string;
   fontSize?: number;
   color?: string;
   align?: TextBlock["align"];
@@ -86,6 +87,7 @@ export function createTextBlock(input: CreateTextInput): TextBlock {
     text: input.text,
     runs: input.runs,
     fontFamily: input.fontFamily ?? "Helvetica",
+    pdfFontFamily: input.pdfFontFamily,
     fontSize: input.fontSize ?? 12,
     color: input.color ?? "#000000",
     align: input.align ?? "left",

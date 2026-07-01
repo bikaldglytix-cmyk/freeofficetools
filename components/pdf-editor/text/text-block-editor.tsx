@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Rect, TextBlock as EditorTextBlock, TextRun } from "@/lib/pdf/editor/model/types";
+import { fontFamilyStack } from "@/lib/pdf/text/fonts";
 import { caretIndexAtX } from "@/lib/pdf/text/measure";
 import type { RichResult } from "@/lib/pdf/text/rich-runs";
 import { RichTextEditor } from "./rich-text-editor";
@@ -35,7 +36,10 @@ function RunSpan({ run, object, zoom }: { run: TextRun; object: EditorTextBlock;
   return (
     <span
       style={{
-        fontFamily: run.fontFamily ?? object.fontFamily,
+        fontFamily: fontFamilyStack(
+          run.fontFamily ?? object.fontFamily,
+          run.pdfFontFamily ?? (run.fontFamily === undefined ? object.pdfFontFamily : undefined),
+        ),
         fontSize: (run.fontSize ?? object.fontSize) * zoom,
         color: run.color ?? object.color,
         fontWeight: (run.bold ?? object.bold) ? 700 : 400,
@@ -159,7 +163,7 @@ export function TextBlockEditor({
   };
 
   const textStyle: CSSProperties = {
-    fontFamily: object.fontFamily,
+    fontFamily: fontFamilyStack(object.fontFamily, object.pdfFontFamily),
     fontSize: object.fontSize * zoom,
     fontWeight: object.bold ? 700 : 400,
     fontStyle: object.italic ? "italic" : "normal",
@@ -181,6 +185,7 @@ export function TextBlockEditor({
           runs={object.runs}
           base={{
             fontFamily: object.fontFamily,
+            pdfFontFamily: object.pdfFontFamily,
             fontSize: object.fontSize,
             color: object.color,
             bold: Boolean(object.bold),
@@ -220,7 +225,7 @@ export function TextBlockEditor({
             text: object.text,
             xPx: e.clientX - left,
             fontSizePx: object.fontSize * zoom,
-            fontFamily: object.fontFamily,
+            fontFamily: fontFamilyStack(object.fontFamily, object.pdfFontFamily),
             bold: object.bold,
             italic: object.italic,
           }),

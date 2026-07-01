@@ -4,15 +4,16 @@ import { ArrowRight } from "lucide-react";
 
 import { siteConfig } from "@/lib/site";
 import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 import { Button } from "@/components/ui/button";
 
+const seo = staticPageSeo("/about");
 export const metadata: Metadata = buildMetadata({
-  title: "About FreeOfficeTools — The Ultimate Free Office Toolkit",
-  description:
-    "Learn about FreeOfficeTools, your one-stop solution for all office works. Discover our completely free, deeply private online PDF editor and document converters.",
-  path: "/about",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: ["about freeofficetools", "free office tools", "one stop solution office", "free online pdf editor", "private pdf tools", "completely free office suite"],
 });
 

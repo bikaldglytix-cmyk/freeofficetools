@@ -1,7 +1,7 @@
 import type { PDFPageProxy, PageViewport } from "pdfjs-dist";
 import { newId } from "@/lib/pdf/editor/model/ids";
 import type { Matrix, Rect } from "@/lib/pdf/editor/model/types";
-import { defaultTextStyle, analyzePdfFont, matchFont } from "./fonts";
+import { defaultTextStyle, analyzePdfFont, classifiesFamily, matchFont } from "./fonts";
 import { multiply } from "./geometry";
 import { reconstructTextBlocks } from "./reconstruction";
 import type { ExtractedTextPage, GlyphRun } from "./types";
@@ -94,8 +94,19 @@ export async function extractPageText(params: {
     // Prefer the real embedded name (e.g. "TimesNewRomanPS-BoldMT") for family
     // detection; fall back to the generic CSS family, then the opaque id.
     const ref = analyzePdfFont(meta?.name || cssFamily || raw.fontName);
+    // A name like "Spectral-Bold" classifies as nothing and would fall back to
+    // Arial; when pdf.js's own generic family knows better, adopt its fallback.
+    const fallbackFamily =
+      !classifiesFamily(meta?.name) && classifiesFamily(cssFamily)
+        ? analyzePdfFont(cssFamily).fallbackFamily
+        : ref.fallbackFamily;
     const font = matchFont({
       ...ref,
+      fallbackFamily,
+      // The @font-face family pdf.js registered for this embedded font — the
+      // text-item fontName IS its loaded name (e.g. "g_d0_f3"). Render sites
+      // put it first in the CSS stack so edits keep the exact original glyphs.
+      cssName: raw.fontName,
       weight: meta?.bold !== undefined ? (meta.bold ? 700 : 400) : ref.weight,
       style: meta?.italic !== undefined ? (meta.italic ? "italic" : "normal") : ref.style,
     });

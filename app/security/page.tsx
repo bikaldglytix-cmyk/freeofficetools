@@ -4,15 +4,16 @@ import { ArrowRight, ShieldCheck, Cpu, HardDrive } from "lucide-react";
 
 import { siteConfig } from "@/lib/site";
 import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 import { Button } from "@/components/ui/button";
 
+const seo = staticPageSeo("/security");
 export const metadata: Metadata = buildMetadata({
-  title: "Security & Privacy Methodology",
-  description:
-    "Learn how FreeOfficeTools processes your files locally in your browser. We never upload, store, or see your data. Absolute privacy by design.",
-  path: "/security",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: ["security", "privacy", "local processing", "webassembly", "secure pdf tools", "secure converter"],
 });
 

@@ -8,7 +8,7 @@ import { guides } from "@/lib/guides";
 // Bump when tool/page content meaningfully changes. A stable date keeps
 // <lastmod> honest — using `new Date()` would claim every page changed on every
 // deploy, which erodes the value of the signal.
-const SITE_UPDATED = new Date("2026-06-29");
+const SITE_UPDATED = new Date("2026-07-02");
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const updated = SITE_UPDATED;

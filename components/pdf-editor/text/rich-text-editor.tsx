@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import type { TextAlign, TextRun } from "@/lib/pdf/editor/model/types";
+import { fontFamilyStack } from "@/lib/pdf/text/fonts";
 import { runsToHtml, serializeDom, type RichResult, type RunBaseStyle } from "@/lib/pdf/text/rich-runs";
 
 /**
@@ -134,7 +135,7 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
         // Chrome-free in-place editing: the editor is TRANSPARENT (the layer
         // underneath removes/masks the original glyphs with correct ink-extent
         // geometry) and the caret is the only visible affordance.
-        fontFamily: base.fontFamily,
+        fontFamily: fontFamilyStack(base.fontFamily, base.pdfFontFamily),
         fontSize: base.fontSize * zoom,
         fontWeight: base.bold ? 700 : 400,
         fontStyle: base.italic ? "italic" : "normal",

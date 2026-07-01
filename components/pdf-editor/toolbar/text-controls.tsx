@@ -1,8 +1,11 @@
 "use client";
 
 import { MousePointerClick, TextCursorInput } from "lucide-react";
+import type { TextBlock as EditorTextBlock } from "@/lib/pdf/editor/model/types";
+import { useDocument, useSelection } from "@/lib/pdf/editor/store/hooks";
 import { cn } from "@/lib/utils";
 import { type TextTool } from "@/components/pdf-editor/text";
+import { TextStyleControls } from "./text-style-controls";
 
 interface TextControlsProps {
   textTool: TextTool;
@@ -10,13 +13,20 @@ interface TextControlsProps {
 }
 
 /**
- * The "Edit Text" mode controls. Just the plain-language action picker now —
- * "Edit existing" (click text on the page to change it) vs "Add text box"
- * (drag a new box). The font / size / colour / weight controls moved into the
- * inline popover that floats above the selected text box, so the toolbar stays
- * a single, uncluttered row.
+ * The "Edit Text" mode controls: the plain-language action picker ("Edit
+ * existing" vs "Add text box") plus — when a single text box is selected — the
+ * font / size / colour / weight controls. These live here in the toolbar, NOT
+ * in a popover floating over the page, so nothing covers the text being edited.
  */
 export function TextControls({ textTool, onTextToolChange }: TextControlsProps) {
+  const selection = useSelection();
+  const doc = useDocument();
+  const selected =
+    doc && selection.pageId && selection.ids.length === 1
+      ? doc.objectsByPage[selection.pageId]?.[selection.ids[0]]
+      : undefined;
+  const selectedText = selected?.kind === "text" ? (selected as EditorTextBlock) : null;
+
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <div className="flex items-center gap-0.5 rounded-md bg-card p-0.5 ring-1 ring-border">
@@ -33,6 +43,7 @@ export function TextControls({ textTool, onTextToolChange }: TextControlsProps) 
           label="Add text box"
         />
       </div>
+      {selectedText ? <TextStyleControls object={selectedText} /> : null}
     </div>
   );
 }

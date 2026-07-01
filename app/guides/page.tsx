@@ -4,14 +4,15 @@ import { ArrowRight } from "lucide-react";
 
 import { guides } from "@/lib/guides";
 import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 
+const seo = staticPageSeo("/guides");
 export const metadata: Metadata = buildMetadata({
-  title: "Guides — Document & Media Tutorials",
-  description:
-    "Simple, practical guides for common tasks: how to merge PDFs, convert video to MP3, convert Word to PDF and more. Clear steps with free tools.",
-  path: "/guides",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: ["pdf guides", "media tutorials", "how to convert video", "how to pdf", "office tools tutorials"],
 });
 

@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 
 import { siteConfig } from "@/lib/site";
 import { buildMetadata, breadcrumbJsonLd } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 
+const seo = staticPageSeo("/privacy");
 export const metadata: Metadata = buildMetadata({
-  title: "Privacy Policy",
-  description:
-    "How FreeOfficeTools handles your data: files are processed in your browser and never uploaded. No accounts, no file storage, privacy-first analytics.",
-  path: "/privacy",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
 });
 
 const crumbs = [

@@ -4,17 +4,18 @@ import { ArrowRight } from "lucide-react";
 
 import { officeTools } from "@/lib/office/tools";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd, canonical } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 import { ToolGrid } from "@/components/sections/tool-card";
 import { TrustBar } from "@/components/sections/trust-bar";
 import { Faq } from "@/components/sections/faq";
 
+const seo = staticPageSeo("/office-tools");
 export const metadata: Metadata = buildMetadata({
-  title: "Free Office Tools — Convert Word, Excel & PowerPoint",
-  description:
-    "Free online office tools to convert Word, Excel and PowerPoint to PDF and back. Private, fast and no sign-up — every document converter in one place.",
-  path: "/office-tools",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: ["office tools", "free office tools", "document converter", "word excel powerpoint to pdf", "online office tools"],
 });
 

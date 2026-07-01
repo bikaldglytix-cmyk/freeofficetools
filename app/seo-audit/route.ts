@@ -6,6 +6,7 @@
  */
 import { siteConfig } from "@/lib/site";
 import { brandedTitle } from "@/lib/seo";
+import { staticPagesSeo } from "@/lib/static-pages";
 import { tools } from "@/lib/tools";
 import { mediaTools } from "@/lib/media/tools";
 import { officeTools } from "@/lib/office/tools";
@@ -44,16 +45,9 @@ function table(rows: Row[]): string {
 export function GET(): Response {
   const toolSchema = "Breadcrumb, WebApplication, HowTo, FAQ";
 
-  const staticRows: Row[] = [
-    row("/", "free pdf, office & media tools", "FreeOfficeTools — Free PDF, Office & Media Tools Online", siteConfig.description, "Organization, WebSite, ItemList, FAQ"),
-    row("/pdf-tools", "free pdf tools", "All PDF Tools — Free & Private", "Every FreeOfficeTools PDF utility in one place: merge, split, compress, rotate, convert and watermark PDFs.", "Breadcrumb, ItemList, FAQ"),
-    row("/office-tools", "office tools", "Free Office Tools — Convert Word, Excel & PowerPoint", "Free online office tools to convert Word, Excel and PowerPoint to PDF and back.", "Breadcrumb, ItemList, FAQ"),
-    row("/media-tools", "video, audio & image tools", "Free Video, Audio & Image Tools — Private, In Your Browser", "Free online video, audio and image tools that run in your browser.", "Breadcrumb, ItemList, FAQ"),
-    row("/guides", "pdf & media guides", "Guides — Document & Media Tutorials", "Simple, practical guides for common PDF, document and media tasks.", "Breadcrumb"),
-    row("/security", "freeofficetools security", "Security & Privacy Methodology", "How FreeOfficeTools processes files privately in your browser.", "Breadcrumb"),
-    row("/about", "about freeofficetools", "About", "FreeOfficeTools offers fast, private, free PDF and document tools that run in your browser.", "Breadcrumb"),
-    row("/privacy", "freeofficetools privacy", "Privacy Policy", "How FreeOfficeTools handles your data: files are processed in your browser and never uploaded.", "Breadcrumb"),
-  ];
+  // Read from the same registry the pages themselves use (lib/static-pages.ts),
+  // so these rows can't drift from the shipped metadata.
+  const staticRows: Row[] = staticPagesSeo.map((p) => row(p.path, p.keyword, p.title, p.description, p.schema));
 
   const pdfRows = tools.map((t) => row(`/pdf-tools/${t.slug}`, t.keywords[0], t.title, t.metaDescription, toolSchema));
   const officeRows = officeTools.map((t) => row(`/office-tools/${t.slug}`, t.keywords[0], t.title, t.metaDescription, toolSchema));

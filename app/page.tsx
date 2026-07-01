@@ -8,16 +8,17 @@ import { tools } from "@/lib/tools";
 import { mediaTools } from "@/lib/media/tools";
 import { officeTools } from "@/lib/office/tools";
 import { buildMetadata, canonical, faqJsonLd } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { TrustBar } from "@/components/sections/trust-bar";
 import { Faq } from "@/components/sections/faq";
 import { AppMockup } from "@/components/sections/app-mockup";
 
+const seo = staticPageSeo("/");
 export const metadata: Metadata = buildMetadata({
-  title: "FreeOfficeTools — Free PDF, Office & Media Tools Online",
-  description:
-    "Free online PDF, document and media tools that run in your browser. Merge, split, compress, convert PDFs, Word, Excel, PowerPoint, video and audio — no sign-up, no uploads, no watermarks.",
-  path: "/",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: [
     "free pdf tools",
     "online pdf editor",

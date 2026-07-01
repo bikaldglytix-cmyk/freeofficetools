@@ -15,6 +15,14 @@ export interface FontReference {
   pdfName?: string;
   family: string;
   fallbackFamily: string;
+  /**
+   * The @font-face family pdf.js registered for the embedded font program
+   * (its internal loaded name, e.g. "g_d0_f3"). Rendering with it first in the
+   * CSS stack shows the document's EXACT glyphs; characters missing from the
+   * subset fall through to `fallbackFamily`. Only valid while the source
+   * document is open in the viewer.
+   */
+  cssName?: string;
   weight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
   style: "normal" | "italic" | "oblique";
   embedded: boolean;

@@ -2,7 +2,7 @@ import { createTextBlock } from "@/lib/pdf/editor/model/factory";
 import type { Rect, TextBlock as EditorTextBlock, TextRun } from "@/lib/pdf/editor/model/types";
 import { ops, type EditOperation, type OperationEnvelope } from "@/lib/pdf/editor/operations/types";
 import { createNewTextInstruction, createWhiteoutRestampInstruction } from "./whiteout";
-import { defaultTextStyle } from "./fonts";
+import { defaultTextStyle, fontFamilyStack } from "./fonts";
 import { measureTextBoxHeight } from "./measure";
 import type { TextBlock, TextStyle } from "./types";
 
@@ -19,7 +19,8 @@ export function textBlockToEditorObject(
     // weight/slant on both screen and export, so a mixed-format line keeps each
     // word's style instead of collapsing to one.
     runs: runs && runs.length ? runs : undefined,
-    fontFamily: block.style.font.fallbackFamily,
+    fontFamily: block.style.font.available ? block.style.font.family : block.style.font.fallbackFamily,
+    pdfFontFamily: block.style.font.cssName,
     fontSize: block.style.fontSize,
     color: block.style.color,
     align: block.style.align,
@@ -170,7 +171,7 @@ function applyStyleToRuns(runs: readonly TextRun[], style: Partial<TextStyle>): 
     ...(style.underline !== undefined ? { underline: style.underline } : {}),
     ...(style.fontSize !== undefined ? { fontSize: style.fontSize } : {}),
     ...(style.color !== undefined ? { color: style.color } : {}),
-    ...(style.font ? { fontFamily: style.font.available ? style.font.family : style.font.fallbackFamily } : {}),
+    ...(style.font ? { fontFamily: style.font.available ? style.font.family : style.font.fallbackFamily, pdfFontFamily: style.font.cssName } : {}),
   }));
 }
 
@@ -179,7 +180,12 @@ export function styleTextOperation(pageId: string, object: EditorTextBlock, styl
   // that maps the rich TextStyle onto the flat editor TextBlock fields. The full
   // style is preserved in metadata so the export engine can restamp faithfully.
   const changes: Partial<EditorTextBlock> = {};
-  if (style.font) changes.fontFamily = style.font.available ? style.font.family : style.font.fallbackFamily;
+  if (style.font) {
+    changes.fontFamily = style.font.available ? style.font.family : style.font.fallbackFamily;
+    // Picking a font in the UI intentionally leaves the embedded face behind
+    // (cssName is undefined for picker fonts, which clears it).
+    changes.pdfFontFamily = style.font.cssName;
+  }
   if (style.fontSize !== undefined) changes.fontSize = style.fontSize;
   if (style.color !== undefined) changes.color = style.color;
   if (style.align !== undefined) changes.align = style.align;
@@ -195,7 +201,10 @@ export function styleTextOperation(pageId: string, object: EditorTextBlock, styl
   const height = measureTextBoxHeight({
     text: object.text,
     widthPoints: object.rect.width,
-    fontFamily: changes.fontFamily ?? object.fontFamily,
+    fontFamily: fontFamilyStack(
+      changes.fontFamily ?? object.fontFamily,
+      "pdfFontFamily" in changes ? changes.pdfFontFamily : object.pdfFontFamily,
+    ),
     fontSizePoints: changes.fontSize ?? object.fontSize,
     bold: changes.bold ?? object.bold,
     italic: changes.italic ?? object.italic,

@@ -4,17 +4,18 @@ import { ArrowRight } from "lucide-react";
 
 import { mediaTools } from "@/lib/media/tools";
 import { buildMetadata, breadcrumbJsonLd, faqJsonLd, canonical } from "@/lib/seo";
+import { staticPageSeo } from "@/lib/static-pages";
 import { JsonLd } from "@/components/seo/json-ld";
 import { Breadcrumbs } from "@/components/sections/breadcrumbs";
 import { ToolGrid } from "@/components/sections/tool-card";
 import { TrustBar } from "@/components/sections/trust-bar";
 import { Faq } from "@/components/sections/faq";
 
+const seo = staticPageSeo("/media-tools");
 export const metadata: Metadata = buildMetadata({
-  title: "Free Video, Audio & Image Tools — Private, In Your Browser",
-  description:
-    "Free online video, audio and image tools that run in your browser: convert video to MP3, compress video, convert PNG to JPG, HEIC to JPG, edit metadata and more. No uploads, no sign-up.",
-  path: "/media-tools",
+  title: seo.title,
+  description: seo.description,
+  path: seo.path,
   keywords: ["video tools", "audio tools", "image converter", "video to mp3", "png to jpg", "heic to jpg", "metadata editor", "online media tools"],
 });
 
