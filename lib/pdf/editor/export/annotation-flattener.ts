@@ -201,8 +201,11 @@ export class AnnotationFlattener {
       borderOpacity: Math.min(stroke.alpha, a.opacity),
     });
     if (a.text) {
-      const { font } = ctx.fonts.resolveFont({ family: "Helvetica", bold: true });
-      const text = ctx.fonts.sanitize(a.text, { pageId: ctx.pageId, objectId: a.id });
+      const { font, text } = ctx.fonts.prepare(
+        { family: "Helvetica", bold: true },
+        a.text,
+        { pageId: ctx.pageId, objectId: a.id },
+      );
       const size = Math.min(a.rect.height * 0.5, 14);
       const baseline = mapPoint(a.rect.x + 6, a.rect.y + a.rect.height / 2 + size * 0.35, ctx.placement);
       ctx.page.drawText(text, {

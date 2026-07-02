@@ -137,6 +137,7 @@ export default function RootLayout({
 
           <Analytics />
           <VercelAnalytics />
+          <SpeedInsights />
           <ServiceWorker />
         </ThemeProvider>
       </body>

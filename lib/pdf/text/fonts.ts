@@ -1,31 +1,30 @@
+import { classifyFamily, resolveBundledFace, type FaceGroupId } from "@/lib/pdf/fonts/face-map";
 import type { FontReference, TextStyle } from "./types";
 
 const FALLBACKS = ["Arial", "Helvetica", "Times New Roman", "Courier New", "Georgia", "Verdana"] as const;
 
-const MONO_RE = /courier|mono|consol/;
-const SANS_RE = /sans|arial|helvetica|verdana|calibri|tahoma|segoe|roboto|noto sans|liberation sans|nimbussan|frutiger|univers/;
-const SERIF_RE = /serif|times|roman|georgia|garamond|minion|cambria|palatino|book ?antiqua|nimbusrom|liberation serif|stix|cmr|computer modern/;
+// The system family each bucket falls back to on screen. Metric-compatible
+// with the bundled face the export engine embeds for the same bucket.
+const SYSTEM_FALLBACK: Record<FaceGroupId, string> = {
+  "liberation-sans": "Arial",
+  "liberation-serif": "Times New Roman",
+  "liberation-mono": "Courier New",
+  "noto-sans": "Arial",
+};
 
-/** True when the name carries a recognizable serif/sans/mono hint at all. */
+/** True when the name carries a recognizable serif/sans/mono hint at all.
+ *  Classification lives in the shared face-map so screen and export agree. */
 export function classifiesFamily(name?: string): boolean {
-  if (!name) return false;
-  const lower = name.replace(/^[A-Z]{6}\+/, "").toLowerCase();
-  return MONO_RE.test(lower) || SANS_RE.test(lower) || SERIF_RE.test(lower);
+  return classifyFamily(name).matched;
 }
 
 export function analyzePdfFont(name?: string): FontReference {
   const raw = name ?? "Helvetica";
   const withoutSubset = raw.replace(/^[A-Z]{6}\+/, "");
   const lower = withoutSubset.toLowerCase();
-  // pdf.js often reports only a generic CSS family ("serif" / "sans-serif" /
-  // "monospace") because the embedded font is subsetted. Detect mono and sans
-  // first so the "serif" substring inside "sans-serif" never misclassifies.
-  const mono = MONO_RE.test(lower);
-  const sans = !mono && SANS_RE.test(lower);
-  const serif = !mono && !sans && SERIF_RE.test(lower);
   const bold = /bold|black|heavy|demi|semibold|\bmedi\b/.test(lower);
   const italic = /italic|oblique/.test(lower);
-  const fallbackFamily = mono ? "Courier New" : serif ? "Times New Roman" : "Arial";
+  const fallbackFamily = SYSTEM_FALLBACK[classifyFamily(withoutSubset).group];
 
   return {
     id: withoutSubset,
@@ -64,22 +63,27 @@ export function defaultTextStyle(overrides: Partial<TextStyle> = {}): TextStyle 
 }
 
 function genericFor(family: string): string {
-  const lower = family.toLowerCase();
-  if (/courier|mono/.test(lower)) return "monospace";
-  if (/times|georgia|serif/.test(lower)) return "serif";
+  const group = classifyFamily(family).group;
+  if (group === "liberation-mono") return "monospace";
+  if (group === "liberation-serif") return "serif";
   return "sans-serif";
 }
 
 /**
  * The CSS font-family stack for rendering edited text: the embedded pdf.js
  * @font-face first (the document's exact glyphs), then the matched/system
- * family, then a generic class — so subset-missing characters degrade to the
- * closest shape instead of the browser default.
+ * family, then the BUNDLED face the export engine will embed (registered via
+ * `ensureScreenFonts`), then a generic class. Ending in the bundled face means
+ * on-screen measurement and the downloaded PDF share metrics even on machines
+ * without Arial/Times installed — edits wrap identically in both.
  */
 export function fontFamilyStack(fontFamily: string | undefined, pdfFontFamily?: string): string {
   const family = fontFamily || "Arial";
+  const bundled = resolveBundledFace({ family }).cssFamily;
   const parts = pdfFontFamily ? [`"${pdfFontFamily}"`] : [];
-  parts.push(`"${family}"`, genericFor(family));
+  parts.push(`"${family}"`);
+  if (bundled.toLowerCase() !== family.toLowerCase()) parts.push(`"${bundled}"`);
+  parts.push(genericFor(family));
   return parts.join(", ");
 }
 

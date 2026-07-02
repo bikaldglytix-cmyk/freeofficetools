@@ -49,8 +49,11 @@ export class SignatureRenderer {
 
   private typed(ctx: RenderContext, sig: SignatureObject): void {
     if (!sig.text) return;
-    const { font } = ctx.fonts.resolveFont({ family: sig.fontFamily ?? "Times", italic: true });
-    const text = ctx.fonts.sanitize(sig.text, { pageId: ctx.pageId, objectId: sig.id });
+    const { font, text } = ctx.fonts.prepare(
+      { family: sig.fontFamily ?? "Times", italic: true },
+      sig.text,
+      { pageId: ctx.pageId, objectId: sig.id },
+    );
     const { rgb: color } = parseColor(sig.strokeColor, { rgb: rgb(0.05, 0.1, 0.4), alpha: 1 });
 
     // Fit the text to the box: cap by height, then shrink if wider than the box.

@@ -24,14 +24,17 @@ export class OcrExporter {
   render(ctx: RenderContext, layer: OCRLayer | undefined): void {
     if (!ctx.options.includeOcr || !layer || layer.words.length === 0) return;
 
-    const { font } = ctx.fonts.resolveFont({ family: "Helvetica" });
     const visible = ctx.options.ocrVisible;
     const color = rgb(0, 0, 0);
 
     for (const word of layer.words) {
       const text = word.text.trim();
       if (!text) continue;
-      const safe = ctx.fonts.sanitize(text, { pageId: ctx.pageId, objectId: word.id });
+      const { font, text: safe } = ctx.fonts.prepare(
+        { family: "Helvetica" },
+        text,
+        { pageId: ctx.pageId, objectId: word.id },
+      );
       const size = Math.max(1, word.rect.height * 0.8);
       // Baseline near the bottom of the word box (top-left origin → +height).
       const baseline = mapPoint(word.rect.x, word.rect.y + word.rect.height * 0.85, ctx.placement);

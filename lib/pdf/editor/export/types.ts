@@ -130,6 +130,7 @@ export const STAGES = [
   "load",
   "validate",
   "pages",
+  "fonts",
   "whiteout",
   "text",
   "images",

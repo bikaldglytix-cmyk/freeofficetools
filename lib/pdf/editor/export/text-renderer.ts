@@ -15,6 +15,7 @@ import type { PDFFont, RGB } from "pdf-lib";
 import { isTextBlock } from "../model/guards";
 import type { EditableObject, TextBlock, TextRun } from "../model/types";
 import { parseColor } from "./color";
+import type { FontRequest } from "./fonts";
 import { placeBaseline, mapPoint } from "./geometry";
 import type { RenderContext } from "./pdf-writer";
 
@@ -24,6 +25,11 @@ interface StyleResolved {
   color: RGB;
   alpha: number;
   underline: boolean;
+  /** The font request, so per-fragment coverage routing can pick a face that
+   *  actually has the glyphs (e.g. a Unicode fallback for non-Latin text). */
+  req: FontRequest;
+  /** True when this resolved to a standard font (needs WinAnsi sanitizing). */
+  standard: boolean;
 }
 
 /** A contiguous run of glyphs sharing one resolved style. A single "word" may
@@ -145,9 +151,20 @@ export class TextRenderer {
             tokens.push({ kind: "space" });
             continue;
           }
-          const text = ctx.fonts.sanitize(chunk, { pageId: ctx.pageId, objectId: block.id });
-          const width = ctx.fonts.widthOf(style.font, text, style.size);
-          frags.push({ text, style, width });
+          // Coverage routing: pick the face that actually has this chunk's
+          // glyphs (primary → Unicode fallback), so mixed-script text doesn't
+          // silently lose characters. Only the standard-font fallback path
+          // still needs WinAnsi sanitizing.
+          const resolved = ctx.fonts.resolveFontForText(style.req, chunk);
+          const fragStyle: StyleResolved =
+            resolved.font === style.font
+              ? style
+              : { ...style, font: resolved.font, standard: resolved.fallback };
+          const text = fragStyle.standard
+            ? ctx.fonts.sanitizeForStandard(chunk, { pageId: ctx.pageId, objectId: block.id })
+            : chunk;
+          const width = ctx.fonts.widthOf(fragStyle.font, text, fragStyle.size);
+          frags.push({ text, style: fragStyle, width });
           wordWidth += width;
         }
       }
@@ -160,14 +177,17 @@ export class TextRenderer {
     const family = run?.fontFamily ?? block.fontFamily;
     const bold = run?.bold ?? block.bold ?? /bold|black|heavy|semibold|demi/i.test(family);
     const italic = run?.italic ?? block.italic ?? /italic|oblique/i.test(family);
-    const { font } = ctx.fonts.resolveFont({ family, bold, italic });
+    const req: FontRequest = { family, bold, italic };
+    const resolved = ctx.fonts.resolveFont(req);
     const { rgb: color, alpha } = parseColor(run?.color ?? block.color);
     return {
-      font,
+      font: resolved.font,
       size: run?.fontSize ?? block.fontSize,
       color,
       alpha,
       underline: run?.underline ?? false,
+      req,
+      standard: resolved.fallback,
     };
   }
 

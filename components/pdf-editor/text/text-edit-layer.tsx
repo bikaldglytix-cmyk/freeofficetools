@@ -8,8 +8,10 @@ import { reflowBelowOps } from "@/lib/pdf/editor/model/reflow";
 import { documentStore } from "@/lib/pdf/editor/store/document-store";
 import { useDispatch, useDispatchAll, useDocument, usePageObjects, useSelection, useSelectionActions } from "@/lib/pdf/editor/store/hooks";
 import { rectKey } from "@/lib/pdf/editor/live/redact-page";
+import { ensureScreenFonts } from "@/lib/pdf/fonts/register-screen-fonts";
 import { fontFamilyStack } from "@/lib/pdf/text/fonts";
 import { clampRect, clientPointToPdfPoint, expandRect, pdfToViewportRect, type Point } from "@/lib/pdf/text/geometry";
+import { lineBoxHeight } from "@/lib/pdf/text/line-box";
 import { caretIndexAtX, measureTextBoxHeight } from "@/lib/pdf/text/measure";
 import {
   createAddedTextOperation,
@@ -17,6 +19,7 @@ import {
   styleTextOperation,
   updateTextContentOperation,
 } from "@/lib/pdf/text/operations";
+import { reflowNativeBelowOps } from "@/lib/pdf/text/reflow-native";
 import { runsFromSpans, type RichResult } from "@/lib/pdf/text/rich-runs";
 import type { TextBlock as NativeTextBlock, TextStyle } from "@/lib/pdf/text/types";
 import { lineMaskRect, storedWhiteoutBounds } from "@/lib/pdf/text/whiteout";
@@ -128,6 +131,12 @@ export function TextEditLayer({
   const enabled = tool !== "off";
 
   const { extracted } = useTextExtraction({ page, documentId, pageId, pageIndex, enabled });
+
+  // Make the bundled faces resolvable on screen so measurement, the inline
+  // editors and the export engine all use the same metrics.
+  useEffect(() => {
+    if (enabled) ensureScreenFonts();
+  }, [enabled]);
 
   const textObjects = useMemo(() => objects.filter(isTextObject), [objects]);
 
@@ -244,7 +253,6 @@ export function TextEditLayer({
       if (!pageId || (text === object.text && !runsChanged)) return;
       // Auto-grow the box to fit the new text so nothing is clipped (Acrobat-style).
       const font = maxRunFontSize({ ...object, runs: result.runs });
-      const oneLine = font * (object.lineHeight || 1.2);
       const measured = measureTextBoxHeight({
         text,
         widthPoints: object.rect.width,
@@ -254,27 +262,33 @@ export function TextEditLayer({
         italic: object.italic,
         lineHeight: object.lineHeight,
       });
-      // Keep the box height stable for single-line edits: the CSS one-line height
-      // is a touch taller than the extracted line box, and resizing it would nudge
-      // the line (and everything below via reflow). Only grow when text wraps.
-      const lineCount = Math.max(1, Math.round(measured / oneLine));
-      const targetHeight = lineCount > 1 ? measured : object.rect.height;
-      const rect = Math.abs(targetHeight - object.rect.height) > 0.5 ? { ...object.rect, height: targetHeight } : undefined;
+      // Exact line-step growth (see line-box.ts): while the text fits the lines
+      // the box already had, the height is untouched — no sub-point re-fit, no
+      // shrink — so committing an edit can never nudge this line or, via reflow,
+      // anything below it. Growth is whole line steps, matching export leading.
+      const targetHeight = lineBoxHeight({
+        measuredHeight: measured,
+        originalHeight: object.rect.height,
+        fontSize: font,
+        lineHeight: object.lineHeight,
+      });
+      const rect = targetHeight > object.rect.height + 0.5 ? { ...object.rect, height: targetHeight } : undefined;
       const edit = updateTextContentOperation(pageId, object, text, rect, result.runs);
       // If the box got taller, push the content below it down by the same amount
-      // so the new lines never overlap what's beneath (one undoable step).
+      // so the new lines never overlap what's beneath (one undoable step). For a
+      // re-edited document line that includes the page's still-native text: those
+      // lines are promoted into shifted replacement objects (Acrobat-style reflow).
       const delta = rect ? targetHeight - object.rect.height : 0;
-      const moves = reflowBelowOps({
-        pageId,
-        objects,
-        anchorId: object.id,
-        oldBottom: object.rect.y + object.rect.height,
-        delta,
-      });
-      if (moves.length) dispatchAll([edit, ...moves], "Edit text");
+      const oldBottom = object.rect.y + object.rect.height;
+      const moves = reflowBelowOps({ pageId, objects, anchorId: object.id, oldBottom, delta });
+      const promoted =
+        object.source === "original"
+          ? reflowNativeBelowOps({ lines: nativeLines, oldBottom, delta })
+          : [];
+      if (moves.length || promoted.length) dispatchAll([edit, ...moves, ...promoted], "Edit text");
       else dispatch(edit);
     },
-    [dispatch, dispatchAll, objects, pageId],
+    [dispatch, dispatchAll, nativeLines, objects, pageId],
   );
 
   const commitNativeEdit = useCallback(
@@ -284,10 +298,9 @@ export function TextEditLayer({
       const text = result.text;
       if (!block || !pageId || text === block.text) return;
       const maxFont = result.runs.reduce((m, r) => Math.max(m, r.fontSize ?? block.style.fontSize), block.style.fontSize);
-      const oneLine = maxFont * (block.style.lineHeight || 1.2);
       // Grow the replacement box downward only if the edited text wraps to more
-      // lines; a single-line edit keeps the original box height so the line (and
-      // content below it) doesn't shift — the source of the "subtle" vertical jump.
+      // lines; growth is exact line steps from the ORIGINAL ink box (line-box.ts)
+      // so a single-line edit keeps the box — and everything below — pinned.
       const measured = measureTextBoxHeight({
         text,
         widthPoints: block.bounds.width,
@@ -297,23 +310,33 @@ export function TextEditLayer({
         italic: block.style.italic,
         lineHeight: block.style.lineHeight,
       });
-      const lineCount = Math.max(1, Math.round(measured / oneLine));
-      const targetHeight = lineCount > 1 ? measured : block.bounds.height;
+      const targetHeight = lineBoxHeight({
+        measuredHeight: measured,
+        originalHeight: block.bounds.height,
+        fontSize: maxFont,
+        lineHeight: block.style.lineHeight,
+      });
       const rect = targetHeight > block.bounds.height + 0.5 ? { ...block.bounds, height: targetHeight } : undefined;
       const op = createReplacementTextOperation({ source: block, text, runs: result.runs, rect });
-      // Push content below down by the growth so a wrapped header doesn't overlap it.
+      // Push content below down by the growth so a wrapped header doesn't
+      // overlap it: store objects move, and the page's still-native lines are
+      // promoted into shifted replacement objects (Acrobat-style reflow) —
+      // all in the same single undoable batch as the edit itself.
+      const delta = rect ? targetHeight - block.bounds.height : 0;
+      const oldBottom = block.bounds.y + block.bounds.height;
       const moves = reflowBelowOps({
         pageId,
         objects,
         anchorId: op.type === "ADD_TEXT" ? op.object.id : block.id,
-        oldBottom: block.bounds.y + block.bounds.height,
-        delta: rect ? targetHeight - block.bounds.height : 0,
+        oldBottom,
+        delta,
       });
-      if (moves.length) dispatchAll([op, ...moves], "Edit text");
+      const promoted = reflowNativeBelowOps({ lines: nativeLines, excludeId: block.id, oldBottom, delta });
+      if (moves.length || promoted.length) dispatchAll([op, ...moves, ...promoted], "Edit text");
       else dispatch(op);
       if (op.type === "ADD_TEXT") select(pageId, [op.object.id]);
     },
-    [dispatch, dispatchAll, nativeEdit, objects, pageId, select],
+    [dispatch, dispatchAll, nativeEdit, nativeLines, objects, pageId, select],
   );
 
   // A native line: drag past a small threshold to MOVE it (promotes it and

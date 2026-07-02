@@ -30,6 +30,8 @@ import { selectOcrLayer, selectPageObjects } from "../store/selectors";
 import { AnnotationFlattener } from "./annotation-flattener";
 import { regionFromVisualRect, removeTextInRegions, type RemovalRegion } from "./content-redactor";
 import { ExportError, ExportCancelled, errorMessage, throwIfAborted } from "./errors";
+import { defaultFontLoader, type FontByteLoader } from "./font-loader";
+import type { FontRequest } from "./fonts";
 import { ImageRenderer } from "./image-renderer";
 import { MetadataWriter } from "./metadata-writer";
 import { OcrExporter } from "./ocr-export";
@@ -52,6 +54,9 @@ export interface PipelineDeps {
   signatures: SignatureRenderer;
   ocr: OcrExporter;
   metadata: MetadataWriter;
+  /** Loads bundled font bytes for real-font embedding; null disables it
+   *  (everything falls back to the standard 14 fonts, e.g. in unit tests). */
+  fontLoader: FontByteLoader | null;
 }
 
 export class ExportPipeline {
@@ -68,6 +73,7 @@ export class ExportPipeline {
       signatures: deps?.signatures ?? new SignatureRenderer(),
       ocr: deps?.ocr ?? new OcrExporter(),
       metadata: deps?.metadata ?? new MetadataWriter(),
+      fontLoader: deps?.fontLoader === undefined ? defaultFontLoader : deps.fontLoader,
     };
   }
 
@@ -117,7 +123,15 @@ export class ExportPipeline {
         this.deps.pageOps.buildPages(doc, writer, options.pageRange, diagnostics),
       );
 
-      // 4–9. per-page rendering -------------------------------------------------
+      // 4. fonts ------------------------------------------------------------
+      // Embed every real face the document needs BEFORE rendering: pdf-lib's
+      // embedFont is async, but renderers resolve fonts synchronously mid-draw,
+      // so preload turns resolveFont into a pure cache lookup.
+      await timed("fonts", 0.12, () =>
+        writer.fonts.preload(collectFontRequests(doc, targets), this.deps.fontLoader),
+      );
+
+      // 5–9. per-page rendering -------------------------------------------------
       await this.renderPages(doc, writer, targets, skip, options, diagnostics, tick, timings);
 
       // collect font fallback/glyph diagnostics accumulated during rendering
@@ -267,6 +281,42 @@ export class ExportPipeline {
 
 function hasSourcePages(doc: DocumentState): boolean {
   return doc.pageOrder.some((id) => doc.pages[id]?.sourcePageIndex !== null);
+}
+
+/**
+ * Every font request the render pass will make, gathered up front so preload
+ * can embed each needed face exactly once. Mirrors the request shapes built in
+ * TextRenderer.resolveStyle, SignatureRenderer.typed, AnnotationFlattener and
+ * OcrExporter — an unanticipated request degrades to a standard font, never
+ * a crash, so this list only has to be right, not exhaustive by construction.
+ */
+function collectFontRequests(doc: DocumentState, targets: readonly RenderTarget[]): FontRequest[] {
+  const requests: FontRequest[] = [];
+  for (const target of targets) {
+    for (const obj of selectPageObjects(doc, target.pageId)) {
+      if (isTextBlock(obj)) {
+        const family = obj.fontFamily;
+        const baseBold = obj.bold ?? /bold|black|heavy|semibold|demi/i.test(family);
+        const baseItalic = obj.italic ?? /italic|oblique/i.test(family);
+        requests.push({ family, bold: baseBold, italic: baseItalic });
+        for (const run of obj.runs ?? []) {
+          requests.push({
+            family: run.fontFamily ?? family,
+            bold: run.bold ?? baseBold,
+            italic: run.italic ?? baseItalic,
+          });
+        }
+      } else if (isSignature(obj)) {
+        if (obj.text) requests.push({ family: obj.fontFamily ?? "Times", italic: true });
+      } else if (isAnnotation(obj)) {
+        if (obj.text) requests.push({ family: "Helvetica", bold: true });
+      }
+    }
+    if (selectOcrLayer(doc, target.pageId)?.words.length) {
+      requests.push({ family: "Helvetica" });
+    }
+  }
+  return requests;
 }
 
 /**

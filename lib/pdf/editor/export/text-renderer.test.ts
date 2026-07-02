@@ -24,13 +24,17 @@ interface DrawCall {
 
 function stubContext(): { ctx: RenderContext; calls: DrawCall[] } {
   const calls: DrawCall[] = [];
+  const resolveFont = ({ family, bold, italic }: { family: string; bold?: boolean; italic?: boolean }) => ({
+    font: { family, bold: Boolean(bold), italic: Boolean(italic) },
+    fallback: false,
+  });
   const fonts = {
-    sanitize: (t: string) => t,
+    sanitizeForStandard: (t: string) => t,
     // Width depends only on length + size, so spacing assertions are exact.
     widthOf: (_font: unknown, text: string, size: number) => text.length * size * 0.5,
-    resolveFont: ({ family, bold, italic }: { family: string; bold?: boolean; italic?: boolean }) => ({
-      font: { family, bold: Boolean(bold), italic: Boolean(italic) },
-    }),
+    resolveFont,
+    // Coverage routing is a no-op in the stub: the primary face covers all.
+    resolveFontForText: (req: { family: string; bold?: boolean; italic?: boolean }) => resolveFont(req),
   };
   const page = {
     drawText: (text: string, opts: { x: number; y: number; size: number; font: DrawCall["font"] }) =>
