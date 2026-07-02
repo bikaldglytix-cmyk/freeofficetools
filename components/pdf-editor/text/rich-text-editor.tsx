@@ -3,7 +3,15 @@
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import type { TextAlign, TextRun } from "@/lib/pdf/editor/model/types";
 import { fontFamilyStack } from "@/lib/pdf/text/fonts";
-import { runsToHtml, serializeDom, type RichResult, type RunBaseStyle } from "@/lib/pdf/text/rich-runs";
+import {
+  faceStylesFrom,
+  normalizeEmbeddedFaces,
+  runsToHtml,
+  serializeDom,
+  type FaceStyleMap,
+  type RichResult,
+  type RunBaseStyle,
+} from "@/lib/pdf/text/rich-runs";
 
 /**
  * In-place, cursor-first rich text editor (Word/Docs/Acrobat-style). It seeds a
@@ -38,23 +46,30 @@ export interface RichTextEditorProps {
   zoom: number;
   /** Caret character offset to start at (caret-at-click); defaults to end. */
   caretIndex?: number | null;
+  /** Single-line semantics: never wrap; typing continues on the same line and
+   *  overflows the box (hard Shift+Enter breaks still work). */
+  noWrap?: boolean;
   onCommit: (result: RichResult) => void;
   onCancel: () => void;
   /** Extra styles merged onto the editable element. */
   style?: CSSProperties;
 }
 
-export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, onCancel, style }: RichTextEditorProps) {
+export function RichTextEditor({ text, runs, base, zoom, caretIndex, noWrap, onCommit, onCancel, style }: RichTextEditorProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   // One-shot latch so Enter/Esc and the unmount-blur each settle exactly once.
   const settled = useRef(false);
   const apiRef = useRef<RichEditorApi | null>(null);
+  // Intrinsic bold/italic of each embedded pdf.js face in the seed content —
+  // consulted after every B/I toggle and at serialize time (see rich-runs.ts).
+  const facesRef = useRef<FaceStyleMap>(new Map());
 
   useLayoutEffect(() => {
     settled.current = false;
     const el = ref.current;
     if (!el) return;
     el.innerHTML = runsToHtml(runs && runs.length ? runs : [{ text }], base, zoom);
+    facesRef.current = faceStylesFrom(runs, base);
     el.focus();
     placeCaret(el, caretIndex ?? textLength(el));
     try {
@@ -70,6 +85,10 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
         } catch {
           /* ignore */
         }
+        // A toggle that contradicts an embedded face's intrinsic style must
+        // swap that span to a real bold/italic-capable family (synthesis is
+        // off), or the user would see nothing change.
+        normalizeEmbeddedFaces(el, base, facesRef.current);
       },
       hasSelection: () => {
         const sel = window.getSelection();
@@ -90,7 +109,16 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
     settled.current = true;
     if (activeApi === apiRef.current) activeApi = null;
     const el = ref.current;
-    onCommit(el ? serializeDom(el, base, zoom) : { text, runs: runs ?? [] });
+    if (!el) {
+      onCommit({ text, runs: runs ?? [] });
+      return;
+    }
+    // Widest rendered line in points (fractional, unlike scrollWidth) so a
+    // noWrap commit can grow the box sideways to exactly fit the text.
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const measuredWidth = range.getBoundingClientRect().width / zoom;
+    onCommit({ ...serializeDom(el, base, zoom, facesRef.current), measuredWidth });
   };
 
   const cancel = () => {
@@ -128,6 +156,8 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
           } catch {
             /* ignore */
           }
+          const el = ref.current;
+          if (el) normalizeEmbeddedFaces(el, base, facesRef.current);
         }
       }}
       onBlur={commit}
@@ -142,8 +172,13 @@ export function RichTextEditor({ text, runs, base, zoom, caretIndex, onCommit, o
         color: base.color,
         textAlign: base.align,
         lineHeight: base.lineHeight,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
+        // Line edits never wrap — added words continue on the same line and
+        // overflow the box, exactly how the committed text will restamp.
+        whiteSpace: noWrap ? "pre" : "pre-wrap",
+        wordBreak: noWrap ? "normal" : "break-word",
+        // Embedded pdf.js faces are registered at weight 400: without this the
+        // browser faux-boldens genuinely-bold faces into "extra bold".
+        fontSynthesis: "none",
         outline: "none",
         caretColor: "var(--primary)",
         minWidth: 4,

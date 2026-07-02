@@ -185,6 +185,26 @@ describe("text/operations", () => {
     expect((op.object.metadata.export as { kind: string }).kind).toBe("whiteout-restamp");
   });
 
+  it("marks a single-line native replacement noWrap; multi-line and added text still wrap", () => {
+    const single = createReplacementTextOperation({ source: nativeBlock(), text: "Replaced with more words" });
+    if (single.type !== "ADD_TEXT") throw new Error("unreachable");
+    expect(single.object.noWrap).toBe(true);
+
+    const [multi] = reconstructTextBlocks({
+      documentId: "doc1",
+      pageId: "page1",
+      runs: [run("First", 0, 100), run("Second", 0, 116)],
+    });
+    expect(multi.lines.length).toBe(2);
+    const multiOp = createReplacementTextOperation({ source: multi, text: "Two\nlines" });
+    if (multiOp.type !== "ADD_TEXT") throw new Error("unreachable");
+    expect(multiOp.object.noWrap).toBeUndefined();
+
+    const added = createAddedTextOperation({ pageId: "page1", rect: { x: 0, y: 0, width: 100, height: 20 }, text: "Hi" });
+    if (added.type !== "ADD_TEXT") throw new Error("unreachable");
+    expect(added.object.noWrap).toBeUndefined();
+  });
+
   it("converts an UPDATE_TEXT content edit, preserving restamp/whiteout metadata", () => {
     const obj = textBlockToEditorObject(nativeBlock()); // source "original", carries export.whiteout
     const op = updateTextContentOperation("page1", obj, "Edited");
@@ -299,6 +319,19 @@ describe("text/whiteout", () => {
     const mask = instruction.whiteout!.bounds[0];
     const lineBottom = line.bounds.y + line.bounds.height;
     expect(mask.y + mask.height).toBeGreaterThanOrEqual(lineBottom + 3.5);
+  });
+
+  it("keeps the mask below the line above: top stays within ~0.9em of the baseline", () => {
+    // Extraction reports a full em of height above the baseline, but real
+    // glyphs stop ~0.9em up — an em-tall mask would cover the descenders of a
+    // single-spaced line above (the "neighbours vanish behind white" bug).
+    const source = nativeBlock(); // 14pt style, baseline at y+height
+    const line = source.lines[0];
+    const mask = createWhiteoutRestampInstruction(source, { objectId: "obj1", text: "New" }).whiteout!.bounds[0];
+    expect(mask.y).toBeGreaterThanOrEqual(line.baseline - 0.9 * 14 - 0.36);
+    // …while still covering the line's own ink bottom (descender strip).
+    const ink = line.inkBounds ?? line.bounds;
+    expect(mask.y + mask.height).toBeGreaterThanOrEqual(ink.y + ink.height);
   });
 });
 

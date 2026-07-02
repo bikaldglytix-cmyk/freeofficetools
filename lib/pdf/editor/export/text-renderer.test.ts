@@ -123,3 +123,44 @@ describe("TextRenderer — per-run formatting", () => {
     expect(big?.size).toBe(24);
   });
 });
+
+describe("TextRenderer — noWrap (single-line native edits)", () => {
+  // Stub width: "aaa bbb ccc" = 11 chars · 12pt · 0.5 = 66pt — far wider than
+  // the 30pt box, so a wrapping block would split it onto several lines.
+  const overflowing = (over: Partial<Parameters<typeof createTextBlock>[0]> = {}) =>
+    createTextBlock({
+      pageId: "p",
+      rect: { x: 100, y: 50, width: 30, height: 14 },
+      text: "aaa bbb ccc",
+      fontFamily: "Arial",
+      fontSize: 12,
+      noWrap: true,
+      ...over,
+    });
+
+  it("keeps all words on one baseline instead of wrapping to the box width", () => {
+    const { ctx, calls } = stubContext();
+    new TextRenderer().draw(ctx, overflowing());
+    expect(calls.map((c) => c.text)).toEqual(["aaa", "bbb", "ccc"]);
+    const ys = new Set(calls.map((c) => c.y));
+    expect(ys.size).toBe(1);
+    // …while the same block WITHOUT noWrap wraps to three lines.
+    const wrapped = stubContext();
+    new TextRenderer().draw(wrapped.ctx, overflowing({ noWrap: undefined }));
+    expect(new Set(wrapped.calls.map((c) => c.y)).size).toBe(3);
+  });
+
+  it("still breaks on hard newlines", () => {
+    const { ctx, calls } = stubContext();
+    new TextRenderer().draw(ctx, overflowing({ text: "aaa\nbbb", runs: undefined }));
+    expect(new Set(calls.map((c) => c.y)).size).toBe(2);
+  });
+
+  it("keeps the RIGHT edge pinned for right-aligned overflow (grows leftward)", () => {
+    const { ctx, calls } = stubContext();
+    new TextRenderer().draw(ctx, overflowing({ align: "right" }));
+    const first = calls[0];
+    // Line width 66 in a 30-wide box at x=100 → starts at 100 + (30 − 66) = 64.
+    expect(first.x).toBeCloseTo(64, 5);
+  });
+});

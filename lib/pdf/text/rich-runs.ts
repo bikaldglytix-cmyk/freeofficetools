@@ -23,6 +23,32 @@ export interface RichResult {
   text: string;
   /** Per-run styling; `[]` when the content is empty. */
   runs: TextRun[];
+  /** Rendered width of the widest line in PDF points (from the live editor
+   *  DOM), so noWrap commits can grow the box sideways to fit. */
+  measuredWidth?: number;
+}
+
+/**
+ * Intrinsic weight/slant of each embedded pdf.js face seen by the editor,
+ * keyed by its @font-face family ("g_d0_f3"). pdf.js registers every embedded
+ * face at weight 400 / style normal regardless of what the glyphs actually
+ * look like, so the face's REAL style is only knowable from the extraction
+ * metadata captured in the seed runs — this map carries it to render/serialize
+ * time. Used to (a) render embedded faces without synthetic re-emboldening and
+ * (b) drop an embedded face from a run whose user-toggled bold/italic no
+ * longer matches it (the system/bundled family then supplies a true variant).
+ */
+export type FaceStyleMap = ReadonlyMap<string, { bold: boolean; italic: boolean }>;
+
+export function faceStylesFrom(runs: readonly TextRun[] | undefined, base: RunBaseStyle): FaceStyleMap {
+  const map = new Map<string, { bold: boolean; italic: boolean }>();
+  if (base.pdfFontFamily) map.set(base.pdfFontFamily, { bold: base.bold, italic: base.italic });
+  for (const r of runs ?? []) {
+    if (r.pdfFontFamily && !map.has(r.pdfFontFamily)) {
+      map.set(r.pdfFontFamily, { bold: r.bold ?? base.bold, italic: r.italic ?? base.italic });
+    }
+  }
+  return map;
 }
 
 /** The block-level defaults a run inherits when it sets no override. */
@@ -127,6 +153,10 @@ function runCss(r: TextRun, base: RunBaseStyle, zoom: number): string {
     `color:${r.color ?? base.color}`,
     `font-weight:${(r.bold ?? base.bold) ? 700 : 400}`,
     `font-style:${(r.italic ?? base.italic) ? "italic" : "normal"}`,
+    // Embedded pdf.js faces carry their true weight in the glyphs but are
+    // registered at weight 400 — without this, weight:700 would faux-embolden
+    // an already-bold face ("edited bold text becomes extra bold").
+    "font-synthesis:none",
   ];
   if (r.underline ?? base.underline) css.push("text-decoration:underline");
   return css.join(";");
@@ -186,12 +216,12 @@ function mapFamily(cssValue: string, base: RunBaseStyle): { fontFamily: string; 
   return { fontFamily, pdfFontFamily };
 }
 
-function styleFromElement(el: Element, base: RunBaseStyle, zoom: number): Omit<TextRun, "text"> {
+function styleFromElement(el: Element, base: RunBaseStyle, zoom: number, faces?: FaceStyleMap): Omit<TextRun, "text"> {
   const cs = getComputedStyle(el);
   const weight = cs.fontWeight;
   const px = parseFloat(cs.fontSize);
   const deco = `${cs.textDecorationLine || ""} ${cs.textDecoration || ""}`;
-  return {
+  const run: Omit<TextRun, "text"> = {
     ...mapFamily(cs.fontFamily, base),
     fontSize: Number.isFinite(px) && px > 0 ? Math.round((px / zoom) * 10) / 10 : base.fontSize,
     color: rgbToHex(cs.color) ?? base.color,
@@ -199,6 +229,15 @@ function styleFromElement(el: Element, base: RunBaseStyle, zoom: number): Omit<T
     italic: /italic|oblique/.test(cs.fontStyle),
     underline: /underline/.test(deco),
   };
+  // A user-toggled weight/slant that contradicts the embedded face's intrinsic
+  // style must not keep that face: its glyphs would render the OLD style (with
+  // synthesis disabled). Dropping it hands the run to the matched system/
+  // bundled family, which has a true bold/italic variant — same as export.
+  if (run.pdfFontFamily && faces) {
+    const face = faces.get(run.pdfFontFamily);
+    if (face && (face.bold !== run.bold || face.italic !== run.italic)) run.pdfFontFamily = undefined;
+  }
+  return run;
 }
 
 /**
@@ -207,7 +246,7 @@ function styleFromElement(el: Element, base: RunBaseStyle, zoom: number): Omit<T
  * whether the browser produced `<b>`, `<span style>` or `<font>` while editing.
  * `<br>` and block wrappers (`<div>`/`<p>`) become `\n`.
  */
-export function serializeDom(root: HTMLElement, base: RunBaseStyle, zoom: number): RichResult {
+export function serializeDom(root: HTMLElement, base: RunBaseStyle, zoom: number, faces?: FaceStyleMap): RichResult {
   const runs: TextRun[] = [];
   let text = "";
 
@@ -217,7 +256,7 @@ export function serializeDom(root: HTMLElement, base: RunBaseStyle, zoom: number
         const raw = (child.textContent ?? "").replace(new RegExp(ZWSP, "g"), "");
         if (!raw) continue;
         const parent = child.parentElement ?? root;
-        runs.push({ text: raw, ...styleFromElement(parent, base, zoom) });
+        runs.push({ text: raw, ...styleFromElement(parent, base, zoom, faces) });
         text += raw;
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const el = child as HTMLElement;
@@ -241,6 +280,36 @@ export function serializeDom(root: HTMLElement, base: RunBaseStyle, zoom: number
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * After a Bold/Italic toggle inside the editor: rewrite the font stack of any
+ * element whose effective weight/slant now contradicts its embedded face's
+ * intrinsic style (see {@link FaceStyleMap}). The browser cannot show "bold"
+ * with a regular embedded face once synthesis is disabled, so the element is
+ * re-pointed at the matched system/bundled family — making the toggle visible
+ * immediately and identical to what serialize/export will produce.
+ */
+export function normalizeEmbeddedFaces(root: HTMLElement, base: RunBaseStyle, faces: FaceStyleMap): void {
+  if (faces.size === 0 || typeof document === "undefined") return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const seen = new Set<Element>();
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const el = n.parentElement;
+    if (!el || el === root || seen.has(el)) continue;
+    seen.add(el);
+    const cs = getComputedStyle(el);
+    const entries = cs.fontFamily.split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""));
+    const pdfFace = entries.find((e) => PDF_FACE_RE.test(e));
+    if (!pdfFace) continue;
+    const face = faces.get(pdfFace);
+    if (!face) continue;
+    const bold = cs.fontWeight === "bold" || (parseInt(cs.fontWeight, 10) || 400) >= 600;
+    const italic = /italic|oblique/.test(cs.fontStyle);
+    if (bold === face.bold && italic === face.italic) continue;
+    const { fontFamily } = mapFamily(cs.fontFamily, base);
+    el.style.fontFamily = cssFamily(fontFamily);
+  }
+}
 
 /** A concrete CSS font stack for a family name, embedded face first. */
 function cssFamily(family: string, pdfFontFamily?: string): string {

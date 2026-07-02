@@ -27,6 +27,9 @@ export function textBlockToEditorObject(
     lineHeight: block.style.lineHeight,
     bold: block.style.bold,
     italic: block.style.italic,
+    // An edit of ONE document line must never re-wrap: added words continue on
+    // the same line (Acrobat behaviour). Multi-line blocks and new boxes wrap.
+    noWrap: source !== "added" && block.lines.length <= 1 ? true : undefined,
     opacity: block.style.opacity,
     rotation: block.transforms.rotation,
     zIndex: block.zIndex,
@@ -209,6 +212,7 @@ export function styleTextOperation(pageId: string, object: EditorTextBlock, styl
     bold: changes.bold ?? object.bold,
     italic: changes.italic ?? object.italic,
     lineHeight: changes.lineHeight ?? object.lineHeight,
+    noWrap: object.noWrap,
   });
   if (Math.abs(height - object.rect.height) > 0.5) changes.rect = { ...object.rect, height };
   const prior = prevExport(object);

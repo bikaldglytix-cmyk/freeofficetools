@@ -25,28 +25,53 @@ import { parseColor } from "./color";
 import { placeBox } from "./geometry";
 import type { RenderContext } from "./pdf-writer";
 
-/** Padding (pt) added around a whiteout mask to cover glyph antialiasing. */
-const WHITEOUT_PAD = 1.25;
+/** Padding (pt) added around a whiteout mask to cover glyph antialiasing.
+ *  Stored per-line bounds already carry their own halo (see lineMaskRect), so
+ *  this stays small — a fat pad paints over neighbouring lines. */
+const WHITEOUT_PAD = 0.4;
+
+/** Key identifying one whiteout rect of one block in a "verifiably removed"
+ *  set (see Pipeline.removeOriginalText): `objectId:rectIndex`. */
+export function whiteoutMaskKey(objectId: string, rectIndex: number): string {
+  return `${objectId}:${rectIndex}`;
+}
+
+const NO_CLEAN: ReadonlySet<string> = new Set();
 
 export class OverlayRenderer {
-  /** Paint whiteout masks + redaction boxes for one page's objects (in z-order). */
-  render(ctx: RenderContext, objects: readonly EditableObject[], skip: ReadonlySet<string>): void {
+  /**
+   * Paint whiteout masks + redaction boxes for one page's objects (in z-order).
+   * `cleanMasks` holds {@link whiteoutMaskKey}s whose original glyphs were
+   * verifiably deleted from the content stream — those masks are skipped, so
+   * the page background (colors, images, rules) survives untouched instead of
+   * being painted over with a rectangle.
+   */
+  render(
+    ctx: RenderContext,
+    objects: readonly EditableObject[],
+    skip: ReadonlySet<string>,
+    cleanMasks: ReadonlySet<string> = NO_CLEAN,
+  ): void {
     for (const obj of objects) {
       if (skip.has(obj.id)) continue;
       if (isTextBlock(obj) && obj.source === "original") {
-        this.whiteout(ctx, obj);
+        this.whiteout(ctx, obj, cleanMasks);
       } else if (isRedaction(obj)) {
         this.redact(ctx, obj);
       }
     }
   }
 
-  private whiteout(ctx: RenderContext, block: TextBlock): void {
+  private whiteout(ctx: RenderContext, block: TextBlock, cleanMasks: ReadonlySet<string>): void {
     const masks = whiteoutRects(block);
+    // Mask-skipping is only sound when these rects are the same stored per-line
+    // bounds the removal stage used (index parity); legacy fallbacks always paint.
+    const skippable = hasStoredWhiteoutBounds(block);
     const exp = block.metadata?.export as { whiteout?: { fill?: string } } | undefined;
     const color = exp?.whiteout?.fill ?? (block.metadata?.whiteoutColor as string | undefined) ?? "#ffffff";
     const { rgb: fill } = parseColor(color, { rgb: rgb(1, 1, 1), alpha: 1 });
-    for (const rect of masks) {
+    masks.forEach((rect, i) => {
+      if (skippable && cleanMasks.has(whiteoutMaskKey(block.id, i))) return;
       const placed = placeBox(rect, ctx.placement, block.rotation);
       ctx.page.drawRectangle({
         x: placed.x,
@@ -57,7 +82,7 @@ export class OverlayRenderer {
         color: fill,
         opacity: 1,
       });
-    }
+    });
   }
 
   private redact(ctx: RenderContext, redaction: RedactionObject): void {
@@ -103,6 +128,13 @@ export function whiteoutRects(block: TextBlock): Rect[] {
         ? legacy
         : [block.rect];
   return rects.map(pad);
+}
+
+/** True when the block carries stored per-line whiteout bounds (the shape the
+ *  removal stage keys its regions off, in the same order). */
+export function hasStoredWhiteoutBounds(block: TextBlock): boolean {
+  const exp = block.metadata?.export as { whiteout?: { bounds?: Rect[] } } | undefined;
+  return Array.isArray(exp?.whiteout?.bounds) && exp.whiteout.bounds.length > 0;
 }
 
 function pad(r: Rect): Rect {

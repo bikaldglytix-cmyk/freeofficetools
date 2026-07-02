@@ -74,14 +74,17 @@ export class TextRenderer {
     // back to a good standard-font ascent approximation.
     const firstBaseline =
       typeof block.metadata?.firstBaseline === "number" ? (block.metadata.firstBaseline as number) : block.fontSize * 0.8;
-    const lines = wrap(tokens, block.rect.width, this.spaceWidthFor(ctx, block));
+    // noWrap blocks (single-line native edits) never re-wrap to the rect: the
+    // text continues on the same line past the right edge, Acrobat-style.
+    const maxWidth = block.noWrap ? Number.POSITIVE_INFINITY : block.rect.width;
+    const lines = wrap(tokens, maxWidth, this.spaceWidthFor(ctx, block));
 
     const pivot = mapPoint(block.rect.x, block.rect.y, ctx.placement);
 
     lines.forEach((line, i) => {
       const baselineY = block.rect.y + firstBaseline + i * lineStep;
       const isLast = i === lines.length - 1;
-      let cursorX = block.rect.x + alignOffset(block.align, block.rect.width, line.width);
+      let cursorX = block.rect.x + alignOffset(block.align, block.rect.width, line.width, Boolean(block.noWrap));
       const justify = block.align === "justify" && !isLast && line.words.length > 1;
       const gap = justify
         ? line.spaceWidth + (block.rect.width - line.width) / (line.words.length - 1)
@@ -217,12 +220,14 @@ export class TextRenderer {
   }
 }
 
-function alignOffset(align: TextBlock["align"], boxWidth: number, lineWidth: number): number {
+function alignOffset(align: TextBlock["align"], boxWidth: number, lineWidth: number, allowOverflow = false): number {
   switch (align) {
     case "right":
-      return Math.max(0, boxWidth - lineWidth);
+      // Overflowing noWrap lines keep their RIGHT edge pinned (grow leftward);
+      // wrapped blocks clamp so an unbreakable word can't drift out of the box.
+      return allowOverflow ? boxWidth - lineWidth : Math.max(0, boxWidth - lineWidth);
     case "center":
-      return Math.max(0, (boxWidth - lineWidth) / 2);
+      return allowOverflow ? (boxWidth - lineWidth) / 2 : Math.max(0, (boxWidth - lineWidth) / 2);
     default:
       return 0;
   }

@@ -114,6 +114,12 @@ export interface TextBlock extends BaseObject {
   bold?: boolean;
   italic?: boolean;
   /**
+   * Never re-wrap this block's text to the rect width: extending it continues
+   * on the same line (the box grows sideways), like Acrobat's single-line
+   * edits. Set for edits of one native document line; hard `\n` still breaks.
+   */
+  noWrap?: boolean;
+  /**
    * `original` = extracted from the source PDF (editing it triggers the
    * whiteout/restamp workflow in Phase 4). `added` = a brand-new text box.
    */

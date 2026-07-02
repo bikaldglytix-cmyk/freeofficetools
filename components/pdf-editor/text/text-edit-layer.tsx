@@ -61,29 +61,61 @@ function isTextObject(o: EditableObject): o is EditorTextBlock {
 }
 
 /**
+ * The editable/selection width for a line: extend it rightward to the text
+ * column's right edge so clicking selects the WHOLE line (left start → column
+ * right) and typing has room to grow before it wraps — instead of the box
+ * hugging the glyphs and wrapping the moment you add a word.
+ *
+ * Only left/justified lines are widened: extending a centred or right-aligned
+ * line would move its restamped text sideways. The returned width never shrinks
+ * below the line's own ink width. This changes only the layout/selection box —
+ * the whiteout mask still keys off the untouched `line.inkBounds`, so it stays
+ * tight to the original glyphs and never paints over neighbours.
+ */
+function columnLineWidth(bounds: Rect, style: TextStyle, columnRight: number): number {
+  if (style.align && style.align !== "left" && style.align !== "justify") return bounds.width;
+  return Math.max(bounds.width, columnRight - bounds.x);
+}
+
+/**
  * Editing granularity: split a reconstructed paragraph block into one editable
  * target *per visual line*, so clicking edits just that line instead of the
  * whole paragraph. Each line becomes a self-contained single-line native block
  * carrying only its own glyph ids + bounds + style, so the whiteout/restamp and
  * content-stream redaction touch only the edited line and leave its neighbours
  * untouched and still extractable.
+ *
+ * `pageWidth` (points) lets a line's selection/editing box reach the document's
+ * right margin — see {@link columnLineWidth}.
  */
-function blockToLineBlocks(block: NativeTextBlock): NativeTextBlock[] {
-  if (block.provenance.kind !== "native" || block.lines.length <= 1) return [block];
-  return block.lines.map((line) => ({
-    ...block,
-    id: line.id,
-    text: line.text.trimEnd(),
-    bounds: line.bounds,
-    lines: [line],
-    style: line.spans[0]?.style ?? block.style,
-    provenance: {
-      kind: "native",
-      pdfItemIds: line.spans.flatMap((span) => span.runs.map((run) => run.id)),
-      confidence: 1,
-      editable: "overlay-replacement",
-    },
-  }));
+function blockToLineBlocks(block: NativeTextBlock, pageWidth: number): NativeTextBlock[] {
+  if (block.provenance.kind !== "native") return [block];
+  // A multi-line paragraph knows its own text column: extend short lines to the
+  // paragraph's right edge so they match the surrounding text. A lone line has
+  // no column to borrow, so mirror its left inset as the right margin to reach
+  // the document's right end.
+  if (block.lines.length <= 1) {
+    const width = columnLineWidth(block.bounds, block.style, pageWidth - block.bounds.x);
+    return [{ ...block, bounds: { ...block.bounds, width } }];
+  }
+  const columnRight = block.bounds.x + block.bounds.width;
+  return block.lines.map((line) => {
+    const style = line.spans[0]?.style ?? block.style;
+    return {
+      ...block,
+      id: line.id,
+      text: line.text.trimEnd(),
+      bounds: { ...line.bounds, width: columnLineWidth(line.bounds, style, columnRight) },
+      lines: [line],
+      style,
+      provenance: {
+        kind: "native",
+        pdfItemIds: line.spans.flatMap((span) => span.runs.map((run) => run.id)),
+        confidence: 1,
+        editable: "overlay-replacement",
+      },
+    };
+  });
 }
 
 function normalizeRect(a: Point, b: Point): Rect {
@@ -93,6 +125,20 @@ function normalizeRect(a: Point, b: Point): Rect {
     width: Math.abs(a.x - b.x),
     height: Math.abs(a.y - b.y),
   };
+}
+
+/**
+ * Grow a noWrap box sideways to fit text that outgrew it, anchored by its
+ * alignment: left-aligned grows rightward, right-aligned keeps its right edge
+ * (grows leftward), centered grows both ways — matching how the export
+ * renderer anchors overflowing noWrap lines.
+ */
+function growRectForAlign(rect: Rect, width: number, align?: string): Rect {
+  const dx = width - rect.width;
+  if (dx <= 0) return rect;
+  if (align === "right") return { ...rect, x: rect.x - dx, width };
+  if (align === "center") return { ...rect, x: rect.x - dx / 2, width };
+  return { ...rect, width };
 }
 
 /**
@@ -156,7 +202,7 @@ export function TextEditLayer({
     if (!extracted) return [];
     return extracted.blocks
       .filter((b) => b.provenance.kind === "native")
-      .flatMap(blockToLineBlocks)
+      .flatMap((b) => blockToLineBlocks(b, extracted.width))
       .filter(
         (line) =>
           line.provenance.kind === "native" &&
@@ -261,6 +307,7 @@ export function TextEditLayer({
         bold: object.bold,
         italic: object.italic,
         lineHeight: object.lineHeight,
+        noWrap: object.noWrap,
       });
       // Exact line-step growth (see line-box.ts): while the text fits the lines
       // the box already had, the height is untouched — no sub-point re-fit, no
@@ -272,13 +319,20 @@ export function TextEditLayer({
         fontSize: font,
         lineHeight: object.lineHeight,
       });
-      const rect = targetHeight > object.rect.height + 0.5 ? { ...object.rect, height: targetHeight } : undefined;
+      const grewTaller = targetHeight > object.rect.height + 0.5;
+      // A noWrap line that outgrew its box widens it (anchored by alignment)
+      // instead of ever wrapping.
+      const base =
+        object.noWrap && result.measuredWidth && result.measuredWidth > object.rect.width + 0.5
+          ? growRectForAlign(object.rect, result.measuredWidth, object.align)
+          : object.rect;
+      const rect = grewTaller ? { ...base, height: targetHeight } : base !== object.rect ? base : undefined;
       const edit = updateTextContentOperation(pageId, object, text, rect, result.runs);
       // If the box got taller, push the content below it down by the same amount
       // so the new lines never overlap what's beneath (one undoable step). For a
       // re-edited document line that includes the page's still-native text: those
       // lines are promoted into shifted replacement objects (Acrobat-style reflow).
-      const delta = rect ? targetHeight - object.rect.height : 0;
+      const delta = grewTaller ? targetHeight - object.rect.height : 0;
       const oldBottom = object.rect.y + object.rect.height;
       const moves = reflowBelowOps({ pageId, objects, anchorId: object.id, oldBottom, delta });
       const promoted =
@@ -298,9 +352,10 @@ export function TextEditLayer({
       const text = result.text;
       if (!block || !pageId || text === block.text) return;
       const maxFont = result.runs.reduce((m, r) => Math.max(m, r.fontSize ?? block.style.fontSize), block.style.fontSize);
-      // Grow the replacement box downward only if the edited text wraps to more
-      // lines; growth is exact line steps from the ORIGINAL ink box (line-box.ts)
-      // so a single-line edit keeps the box — and everything below — pinned.
+      // Line edits never re-wrap: extra words continue on the same line and the
+      // box grows SIDEWAYS (anchored by alignment). Height can only grow when
+      // the user inserts hard Shift+Enter breaks — in exact line steps from the
+      // ORIGINAL ink box (line-box.ts) so everything below stays pinned.
       const measured = measureTextBoxHeight({
         text,
         widthPoints: block.bounds.width,
@@ -309,6 +364,7 @@ export function TextEditLayer({
         bold: block.style.bold,
         italic: block.style.italic,
         lineHeight: block.style.lineHeight,
+        noWrap: true,
       });
       const targetHeight = lineBoxHeight({
         measuredHeight: measured,
@@ -316,13 +372,18 @@ export function TextEditLayer({
         fontSize: maxFont,
         lineHeight: block.style.lineHeight,
       });
-      const rect = targetHeight > block.bounds.height + 0.5 ? { ...block.bounds, height: targetHeight } : undefined;
+      const grewTaller = targetHeight > block.bounds.height + 0.5;
+      const baseRect =
+        result.measuredWidth && result.measuredWidth > block.bounds.width + 0.5
+          ? growRectForAlign(block.bounds, result.measuredWidth, block.style.align)
+          : block.bounds;
+      const rect = grewTaller ? { ...baseRect, height: targetHeight } : baseRect !== block.bounds ? baseRect : undefined;
       const op = createReplacementTextOperation({ source: block, text, runs: result.runs, rect });
-      // Push content below down by the growth so a wrapped header doesn't
-      // overlap it: store objects move, and the page's still-native lines are
-      // promoted into shifted replacement objects (Acrobat-style reflow) —
+      // Push content below down by any height growth so added hard-break lines
+      // don't overlap it: store objects move, and the page's still-native lines
+      // are promoted into shifted replacement objects (Acrobat-style reflow) —
       // all in the same single undoable batch as the edit itself.
-      const delta = rect ? targetHeight - block.bounds.height : 0;
+      const delta = grewTaller ? targetHeight - block.bounds.height : 0;
       const oldBottom = block.bounds.y + block.bounds.height;
       const moves = reflowBelowOps({
         pageId,
@@ -601,6 +662,7 @@ export function TextEditLayer({
             }}
             zoom={zoom}
             caretIndex={nativeCaret}
+            noWrap
             onCommit={commitNativeEdit}
             onCancel={() => setNativeEdit(null)}
             style={{ width: "100%" }}

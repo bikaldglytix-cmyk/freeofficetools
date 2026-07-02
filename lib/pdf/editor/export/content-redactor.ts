@@ -45,8 +45,29 @@ export interface RedactionResult {
   matched?: boolean[];
 }
 
-/** A small tolerance (pt) around a region so baselines just inside still match. */
+/** A small horizontal tolerance (pt) so show ops starting just outside still match. */
 const PAD = 2;
+
+/**
+ * Vertical match band, as a fraction of region height measured up from the
+ * region BOTTOM. A show operator's origin is its baseline start, and a
+ * single-line ink region contains its own baseline in the bottom ~15–30%
+ * (descent + halo below it, a full ascent above it). The neighbouring line
+ * ABOVE sits at ≥ ~75% of the region height even at very tight leading, so
+ * accepting origins only in the bottom 60% removes exactly the edited line and
+ * never the line above — the old whole-rect + vertical-pad test blanked
+ * neighbours in single-spaced text.
+ */
+const BASELINE_BAND = 0.6;
+
+function originInRegion(r: RemovalRegion, ox: number, oy: number): boolean {
+  return (
+    ox >= r.x0 - PAD &&
+    ox <= r.x1 + PAD &&
+    oy >= r.y0 - 1 &&
+    oy <= r.y0 + BASELINE_BAND * (r.y1 - r.y0)
+  );
+}
 
 /**
  * Convert an editor/visual-space rect (origin top-left, y down) to a PDF
@@ -71,8 +92,17 @@ export function removeTextInRegions(page: PDFPage, regions: readonly RemovalRegi
   try {
     const src = readContent(page);
     if (src === null) return { ok: false, removed: 0, reason: "no-content-stream" };
+    // Editor rects live in the RENDERED box (pdf.js view ≈ CropBox), whose
+    // origin need not be (0,0) — Word/Skia PDFs often offset the MediaBox
+    // (e.g. y₀ = 8.37). Content-stream origins are raw device coordinates, so
+    // shift the regions by the box origin or nothing would ever match.
+    const box = page.getCropBox();
+    const shifted =
+      box.x !== 0 || box.y !== 0
+        ? regions.map((r) => ({ x0: r.x0 + box.x, x1: r.x1 + box.x, y0: r.y0 + box.y, y1: r.y1 + box.y }))
+        : regions;
     const matched = new Array<boolean>(regions.length).fill(false);
-    const edits = computeRemovals(src, regions, matched);
+    const edits = computeRemovals(src, shifted, matched);
     if (edits.length === 0) return { ok: true, removed: 0, matched };
     writeContent(page, applyEdits(src, edits));
     return { ok: true, removed: edits.length, matched };
@@ -314,8 +344,6 @@ export function computeRemovals(src: string, regions: readonly RemovalRegion[], 
     tlm = multiply([1, 0, 0, 1, 0, -leading], tlm);
     tm = [...tlm];
   };
-  const regionIndexAt = (x: number, y: number): number =>
-    regions.findIndex((r) => x >= r.x0 - PAD && x <= r.x1 + PAD && y >= r.y0 - PAD && y <= r.y1 + PAD);
 
   for (const t of toks) {
     if (t.type !== "op") {
@@ -379,16 +407,14 @@ export function computeRemovals(src: string, regions: readonly RemovalRegion[], 
         if (t.op === "'" || t.op === '"') newline();
         const [ox, oy] = applyPoint(ctm, tm[4], tm[5]);
         const textTok = operands[operands.length - 1];
-        const regionIndex = textTok ? regionIndexAt(ox, oy) : -1;
-        if (textTok && regionIndex >= 0) {
+        if (textTok && regions.some((r) => originInRegion(r, ox, oy))) {
           const replacement = textTok.type === "array" ? "[]" : textTok.type === "hexstring" ? "<>" : "()";
           edits.push({ start: textTok.start, end: textTok.end, replacement });
           if (matchedOut) {
             // Mark EVERY region containing this origin, not just the first — two
             // edited lines can overlap and each must know its glyphs are gone.
             for (let ri = 0; ri < regions.length; ri++) {
-              const r = regions[ri];
-              if (ox >= r.x0 - PAD && ox <= r.x1 + PAD && oy >= r.y0 - PAD && oy <= r.y1 + PAD) matchedOut[ri] = true;
+              if (originInRegion(regions[ri], ox, oy)) matchedOut[ri] = true;
             }
           }
         }

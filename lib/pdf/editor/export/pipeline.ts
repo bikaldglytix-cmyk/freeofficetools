@@ -36,7 +36,7 @@ import { ImageRenderer } from "./image-renderer";
 import { MetadataWriter } from "./metadata-writer";
 import { OcrExporter } from "./ocr-export";
 import { resolveOptions } from "./options";
-import { OverlayRenderer } from "./overlay-renderer";
+import { OverlayRenderer, hasStoredWhiteoutBounds, whiteoutMaskKey } from "./overlay-renderer";
 import { PageOperations, type RenderTarget } from "./page-operations";
 import { PDFWriter, type RenderContext } from "./pdf-writer";
 import { SignatureRenderer } from "./signature-renderer";
@@ -200,10 +200,11 @@ export class ExportPipeline {
 
       // TRUE removal: delete edited original glyphs from the copied page's
       // content stream so they are not extractable underneath the new text.
-      this.removeOriginalText(ctx, objects, skip, diagnostics);
+      const cleanMasks = this.removeOriginalText(ctx, objects, skip, diagnostics);
 
-      // whiteout/redaction masks (visual safety net + colored-background cases)
-      this.deps.overlay.render(ctx, objects, skip);
+      // whiteout/redaction masks — only where removal could NOT verifiably
+      // reach (visual safety net); cleaned regions keep their real background.
+      this.deps.overlay.render(ctx, objects, skip, cleanMasks);
 
       // content in z-order (the array is already ascending zIndex)
       for (const obj of objects) {
@@ -227,22 +228,33 @@ export class ExportPipeline {
    * stream (true removal, not just masking). Best-effort: only runs on an
    * unrotated copied source page; any failure is reported as info and the
    * whiteout mask still guarantees the visual result.
+   *
+   * Returns the {@link whiteoutMaskKey}s of the stored whiteout rects whose
+   * glyphs were verifiably removed, so the overlay stage can skip painting a
+   * mask there and leave the page background intact.
    */
   private removeOriginalText(
     ctx: RenderContext,
     objects: readonly EditableObject[],
     skip: ReadonlySet<string>,
     diagnostics: ExportDiagnostic[],
-  ): void {
-    if (!ctx.writer.hasSource() || ctx.placement.rotation !== 0) return;
+  ): Set<string> {
+    const cleanMasks = new Set<string>();
+    if (!ctx.writer.hasSource() || ctx.placement.rotation !== 0) return cleanMasks;
     const regions: RemovalRegion[] = [];
+    // Owner of each region, so per-region match results map back to the exact
+    // whiteout rect (index parity with metadata.export.whiteout.bounds). Null
+    // when the bounds were a legacy fallback — those masks must always paint.
+    const owners: Array<string | null> = [];
     for (const obj of objects) {
       if (skip.has(obj.id) || !isTextBlock(obj) || obj.source !== "original") continue;
-      for (const rect of originalTextBounds(obj)) {
+      const stored = hasStoredWhiteoutBounds(obj);
+      originalTextBounds(obj).forEach((rect, index) => {
         regions.push(regionFromVisualRect(rect, ctx.placement.mediaHeight));
-      }
+        owners.push(stored ? whiteoutMaskKey(obj.id, index) : null);
+      });
     }
-    if (regions.length === 0) return;
+    if (regions.length === 0) return cleanMasks;
     const result = removeTextInRegions(ctx.page, regions);
     if (!result.ok) {
       diagnostics.push({
@@ -251,7 +263,13 @@ export class ExportPipeline {
         message: `Couldn't rewrite the page content stream to delete original text (${result.reason ?? "unknown"}); the edited text is masked instead, and the original may remain extractable underneath.`,
         pageId: ctx.pageId,
       });
+      return cleanMasks;
     }
+    result.matched?.forEach((hit, i) => {
+      const key = owners[i];
+      if (hit && key) cleanMasks.add(key);
+    });
+    return cleanMasks;
   }
 
   private async dispatch(ctx: RenderContext, obj: EditableObject): Promise<void> {

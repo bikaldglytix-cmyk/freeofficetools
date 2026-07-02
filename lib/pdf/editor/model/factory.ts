@@ -75,6 +75,7 @@ export interface CreateTextInput extends BaseInput {
   lineHeight?: number;
   bold?: boolean;
   italic?: boolean;
+  noWrap?: boolean;
   source?: TextBlock["source"];
   runs?: TextBlock["runs"];
   originalItemIds?: string[];
@@ -94,6 +95,7 @@ export function createTextBlock(input: CreateTextInput): TextBlock {
     lineHeight: input.lineHeight ?? 1.2,
     bold: input.bold,
     italic: input.italic,
+    noWrap: input.noWrap,
     source: input.source ?? "added",
     originalItemIds: input.originalItemIds,
   };

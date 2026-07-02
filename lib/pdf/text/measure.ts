@@ -25,6 +25,9 @@ export interface MeasureTextInput {
   italic?: boolean;
   /** Unitless line-height multiplier (e.g. 1.2). */
   lineHeight: number;
+  /** Single-line semantics: only hard `\n` breaks count, the text never wraps
+   *  to `widthPoints` (see TextBlock.noWrap). */
+  noWrap?: boolean;
 }
 
 let measureEl: HTMLDivElement | null = null;
@@ -63,11 +66,23 @@ export function measureTextBoxHeight(input: MeasureTextInput): number {
   }
 
   const s = el.style;
-  s.width = `${Math.max(1, input.widthPoints)}px`;
+  // The element is shared across calls — set BOTH branches of every mode.
+  if (input.noWrap) {
+    s.width = "max-content";
+    s.whiteSpace = "pre";
+    s.wordBreak = "normal";
+  } else {
+    s.width = `${Math.max(1, input.widthPoints)}px`;
+    s.whiteSpace = "pre-wrap";
+    s.wordBreak = "break-word";
+  }
   s.fontFamily = input.fontFamily;
   s.fontSize = `${input.fontSizePoints}px`;
   s.fontWeight = input.bold ? "700" : "400";
   s.fontStyle = input.italic ? "italic" : "normal";
+  // Embedded pdf.js faces are registered at weight 400; without this the
+  // browser would faux-bolden them and measure the widened glyphs.
+  s.setProperty("font-synthesis", "none");
   s.lineHeight = String(lineHeight);
   // Trailing "​" (zero-width space) forces a final empty line produced by a
   // trailing newline to be counted in scrollHeight; a lone space keeps an empty

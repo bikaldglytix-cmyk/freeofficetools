@@ -108,20 +108,21 @@ describe("overlay — whiteout bounds", () => {
     const rects = whiteoutRects(block({ export: { whiteout: { bounds: [original] } } }));
     expect(rects).toHaveLength(1);
     // Padded original bounds — must derive from `original`, not the block rect.
-    expect(rects[0].x).toBeCloseTo(original.x - 1.25, 2);
-    expect(rects[0].width).toBeCloseTo(original.width + 2.5, 2);
+    // (Pad is small: stored per-line bounds already carry their own halo.)
+    expect(rects[0].x).toBeCloseTo(original.x - 0.4, 2);
+    expect(rects[0].width).toBeCloseTo(original.width + 0.8, 2);
   });
 
   it("still honours the legacy metadata.whiteoutBounds key", () => {
     const rects = whiteoutRects(block({ whiteoutBounds: [{ x: 1, y: 2, width: 3, height: 4 }] }));
     expect(rects).toHaveLength(1);
-    expect(rects[0].x).toBeCloseTo(1 - 1.25, 2);
+    expect(rects[0].x).toBeCloseTo(1 - 0.4, 2);
   });
 
   it("falls back to the block rect when no bounds are recorded", () => {
     const rects = whiteoutRects(block({}));
     expect(rects).toHaveLength(1);
-    expect(rects[0].width).toBeCloseTo(100 + 2.5, 2);
+    expect(rects[0].width).toBeCloseTo(100 + 0.8, 2);
   });
 });
 

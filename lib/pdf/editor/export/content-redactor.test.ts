@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeRemovals, regionFromVisualRect, type RemovalRegion } from "./content-redactor";
+import { computeRemovals, regionFromVisualRect, removeTextInRegions, type RemovalRegion } from "./content-redactor";
 
 /** Apply edits the same way the module does, for assertion convenience. */
 function apply(src: string, edits: ReturnType<typeof computeRemovals>): string {
@@ -69,11 +69,61 @@ describe("computeRemovals", () => {
     expect(edits).toHaveLength(1);
     expect(matched).toEqual([true, false]);
   });
+
+  it("never blanks the single-spaced line ABOVE the edited line", () => {
+    // Two 12pt lines at very tight leading (12pt apart). The edited (lower)
+    // line's mask region is its ink extent: ~descent+halo below the baseline,
+    // a full ascent above — which vertically OVERLAPS the line above. Origins
+    // are baselines, so only the bottom band of the region may match.
+    const src = [
+      "BT 1 0 0 1 100 712 Tm (above) Tj ET",
+      "BT 1 0 0 1 100 700 Tm (edited) Tj ET",
+      "BT 1 0 0 1 100 688 Tm (below) Tj ET",
+    ].join("\n");
+    // Region for the edited line (baseline 700): bottom = 700 − 3.2, top = 700 + 11.
+    const region: RemovalRegion = { x0: 90, x1: 200, y0: 696.8, y1: 711 };
+    const matched = [false];
+    const edits = computeRemovals(src, [region], matched);
+    expect(edits).toHaveLength(1);
+    const out = apply(src, edits);
+    expect(out).toContain("(above) Tj");
+    expect(out).toContain("(below) Tj");
+    expect(out).not.toContain("(edited)");
+    expect(matched).toEqual([true]);
+  });
 });
 
 describe("regionFromVisualRect", () => {
   it("flips the y axis from top-left visual space to PDF user space", () => {
     const r = regionFromVisualRect({ x: 10, y: 20, width: 100, height: 12 }, 800);
     expect(r).toEqual({ x0: 10, x1: 110, y0: 768, y1: 780 });
+  });
+});
+
+describe("removeTextInRegions — page box origin", () => {
+  it("matches text on pages whose MediaBox origin is not (0,0)", async () => {
+    // Word/Skia exports often use an offset MediaBox (e.g. y₀ = 8.37). Editor
+    // rects are relative to the RENDERED box, content-stream origins are raw
+    // device coordinates — without the shift nothing ever matched on such PDFs.
+    const { PDFDocument, StandardFonts } = await import("pdf-lib");
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([445.5, 639.12]);
+    page.setMediaBox(0, 8.37, 445.5, 630.75);
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    page.drawText("target", { x: 100, y: 400, size: 12, font }); // device baseline y=400
+    page.drawText("above", { x: 100, y: 412, size: 12, font }); // tight line above
+
+    // Round-trip so the page content becomes a raw stream, like a real
+    // loaded/copied source page (the only shape the redactor operates on).
+    const reloaded = await PDFDocument.load(await doc.save());
+
+    // The editor's visual-space ink rect for the target line: box-relative,
+    // top-left origin. Baseline visual y = (8.37 + 630.75) − 400 = 239.12.
+    const rect = { x: 90, y: 239.12 - 10, width: 100, height: 13.5 };
+    const result = removeTextInRegions(reloaded.getPage(0), [regionFromVisualRect(rect, 630.75)]);
+    expect(result.ok).toBe(true);
+    expect(result.matched).toEqual([true]);
+    // Exactly ONE op blanked: the target, never its tight neighbour above.
+    expect(result.removed).toBe(1);
   });
 });

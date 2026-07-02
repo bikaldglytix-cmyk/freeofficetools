@@ -45,6 +45,9 @@ function RunSpan({ run, object, zoom }: { run: TextRun; object: EditorTextBlock;
         fontWeight: (run.bold ?? object.bold) ? 700 : 400,
         fontStyle: (run.italic ?? object.italic) ? "italic" : "normal",
         textDecoration: run.underline ? "underline" : undefined,
+        // Embedded pdf.js faces are registered at weight 400; synthesis would
+        // faux-embolden an already-bold face into "extra bold".
+        fontSynthesis: "none",
       }}
     >
       {run.text}
@@ -170,8 +173,9 @@ export function TextBlockEditor({
     color: object.color,
     textAlign: object.align,
     lineHeight: object.lineHeight,
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
+    whiteSpace: object.noWrap ? "pre" : "pre-wrap",
+    wordBreak: object.noWrap ? "normal" : "break-word",
+    fontSynthesis: "none",
     width: "100%",
     height: "100%",
   };
@@ -195,6 +199,7 @@ export function TextBlockEditor({
           }}
           zoom={zoom}
           caretIndex={pendingCaret}
+          noWrap={object.noWrap}
           onCommit={onCommit}
           onCancel={onCancelEdit}
           style={{ width: "100%", padding: 0, margin: 0 }}
